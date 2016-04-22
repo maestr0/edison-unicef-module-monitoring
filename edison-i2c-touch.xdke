@@ -1,0 +1,96 @@
+{
+  "project": {
+    "projectSettingsVersion": "2.0.0",
+    "initialAutoPluginCount": 0,
+    "currentBuildConfiguration": "Android",
+    "projectFiles": {},
+    "projectDirectories": {}
+  },
+  "iot-tab": {
+    "fileStatus": {
+      "README.md": {
+        "previousModTime": 1456978266000,
+        "modified": 1456978266000,
+        "seen": true,
+        "name": "README.md"
+      },
+      "edison-i2c-touch.xdk": {
+        "previousModTime": 1459182525000,
+        "modified": 1459182525000,
+        "seen": true,
+        "name": "edison-i2c-touch.xdk"
+      },
+      "edison-i2c-touch.xdke": {
+        "previousModTime": 1461203078000,
+        "modified": 1461203078000,
+        "seen": true,
+        "name": "edison-i2c-touch.xdke"
+      },
+      "edison-i2c-touch_1.2.0.xdk_bak": {
+        "previousModTime": 1459182525000,
+        "modified": 1459182525000,
+        "seen": true,
+        "name": "edison-i2c-touch_1.2.0.xdk_bak"
+      },
+      "edison-i2c-touch_1.2.0.xdke_bak": {
+        "previousModTime": 1459182525000,
+        "modified": 1459182525000,
+        "seen": true,
+        "name": "edison-i2c-touch_1.2.0.xdke_bak"
+      },
+      "i2c.js": {
+        "previousModTime": 1459182525000,
+        "modified": 1459182525000,
+        "seen": true,
+        "name": "i2c.js"
+      },
+      "i2c.xdke": {
+        "previousModTime": 1459182525000,
+        "modified": 1459182525000,
+        "seen": true,
+        "name": "i2c.xdke"
+      },
+      "icon.png": {
+        "previousModTime": 1459182525000,
+        "modified": 1459182525000,
+        "seen": true,
+        "name": "icon.png"
+      },
+      "main.js": {
+        "previousModTime": 1461203163000,
+        "modified": 1461203163000,
+        "seen": true,
+        "name": "main.js"
+      },
+      "package.json": {
+        "previousModTime": 1459552037000,
+        "modified": 1459552037000,
+        "seen": true,
+        "name": "package.json"
+      },
+      "xdk/project-info.json": {
+        "previousModTime": 1459182525000,
+        "modified": 1459182525000,
+        "seen": true,
+        "name": "xdk/project-info.json"
+      },
+      "flora.js": {
+        "previousModTime": 1459182525000,
+        "modified": 1459182525000,
+        "seen": true,
+        "name": "flora.js"
+      },
+      ".gitignore": {
+        "previousModTime": 1458943172000,
+        "modified": 1458943172000,
+        "seen": true,
+        "name": ".gitignore"
+      }
+    },
+    "boardFileStatus": {
+      "main.js": {
+        "previousModTime": 1461203167138
+      }
+    }
+  }
+}
