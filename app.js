@@ -18,6 +18,19 @@ app.listen(app.get('port'), function () {
 // **********************
 
 
+process.env.MODULE_DATA_DIR // /media/sdcard/data
+process.env.SCRIPTS // /home/root/scripts
+
+// TODO: add dependencies properly!
+
+
+
+
+
+
+
+
+
 
 
 // "q": "latest",
