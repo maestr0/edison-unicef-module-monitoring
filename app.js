@@ -119,9 +119,19 @@ var processLogQueue = function () {
 var takingPictures = false;
 var exec = require('child_process').exec;
 
+var createPackagePrefix = function(){
+    // TODO: implement this shit
+    var randomPart = Math.random().toString(36).substring(10);
+    var rebootCount = "FIXME";
+    var datetime = "2016_06_01_134501"; // FIXME
+    return rebootCount + "_" + datetime +"_" + randomPart;
+}
+
 var takePicture = function () {
     console.log("Taking pictures...");
-    var command = "/home/root/bin/ffmpeg/ffmpeg -an -r 4 -s 1024x768 -f video4linux2 -ss 5 -i /dev/video0 -vframes 200 /media/sdcard/node-test-%3d.jpeg";
+
+    var command = process.env.SCRIPTS + "/capture.sh " + createPackagePrefix();
+    //var command = "/home/root/bin/ffmpeg/ffmpeg -an -r 4 -s 1024x768 -f video4linux2 -ss 5 -i /dev/video0 -vframes 200 /media/sdcard/node-test-%3d.jpeg";
     // for movie ffmpeg -s 1024x768 -f video4linux2  -i /dev/video0 -f mpeg1video -b 800k -r 30 -t 50 /media/sdcard/images/out.mpg
     exec(command, function (error, stdout, stderr) {
 
