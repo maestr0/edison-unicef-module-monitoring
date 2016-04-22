@@ -18,9 +18,9 @@ app.listen(app.get('port'), function () {
 // **********************
 
 
-process.env.MODULE_DATA_DIR // /media/sdcard/data
-process.env.SCRIPTS // /home/root/scripts
-
+process.env.MODULE_DATA_DIR; // /media/sdcard/data
+process.env.SCRIPTS; // /home/root/scripts
+process.env.REBOOT_COUNT;
 // TODO: add dependencies properly!
 
 
@@ -122,7 +122,7 @@ var exec = require('child_process').exec;
 var createPackagePrefix = function(){
     // TODO: implement this shit
     var randomPart = Math.random().toString(36).substring(10);
-    var rebootCount = "FIXME";
+    var rebootCount = "FIXME"; // process.env.REBOOT_COUNT  file path
     var datetime = "2016_06_01_134501"; // FIXME
     return rebootCount + "_" + datetime +"_" + randomPart;
 }
