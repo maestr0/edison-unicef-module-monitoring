@@ -129,8 +129,8 @@ var createPackagePrefix = function(){
 
 var takePicture = function () {
     console.log("Taking pictures...");
-
-    var command = process.env.SCRIPTS + "/capture.sh " + createPackagePrefix();
+    var prefix = createPackagePrefix();
+    var command = process.env.SCRIPTS + "/capture.sh " + prefix;
     //var command = "/home/root/bin/ffmpeg/ffmpeg -an -r 4 -s 1024x768 -f video4linux2 -ss 5 -i /dev/video0 -vframes 200 /media/sdcard/node-test-%3d.jpeg";
     // for movie ffmpeg -s 1024x768 -f video4linux2  -i /dev/video0 -f mpeg1video -b 800k -r 30 -t 50 /media/sdcard/images/out.mpg
     exec(command, function (error, stdout, stderr) {
@@ -138,6 +138,18 @@ var takePicture = function () {
         if (!error) {
             console.log("image captured successfully");
             msg = "image captured successfully";
+
+
+
+//    HERE CALL   
+process.env.SCRIPTS + "/archive.sh " + prefix;
+
+
+
+
+
+
+
         } else {
             console.error("shit happened with the camera " + stderr);
             msg = "ERROR: shit happened " + stderr;
