@@ -8,6 +8,7 @@
   },
   "dependencies": {
       "jsupm_lsm9ds0": "0.4.1",
-      "express": "4.13.1"
+      "express": "4.13.1",
+      "serialport": "3.0.0"
   }
 }
