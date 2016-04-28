@@ -2,13 +2,13 @@
   "name": "mpr-121-edison",
   "description": "",
   "version": "0.0.0",
-  "main": "app.js",
+  "main": "touch-test.js",
   "engines": {
     "node": ">=0.10.0"
   },
   "dependencies": {
-      "jsupm_lsm9ds0": "0.4.1",
-      "express": "4.13.1",
-      "serialport": "3.0.0"
+    "jsupm_lsm9ds0": "0.4.1",
+    "express": "4.13.1",
+    "serialport": "3.0.0"
   }
 }
