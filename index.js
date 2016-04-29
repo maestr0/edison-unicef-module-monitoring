@@ -15,10 +15,15 @@ function isrTouchSensorCallback() {
 logger("START MONITORING");
 
 var touchCount = 0;
+var touchInterval = null;
 
 main();
 
 function main() {
+    // start collecting touch data
+    touchCount = 0;
+    touchInterval = setInterval(touchCounter, 1000);
+
     logger("Collecting data for 5s");
     startCapturingTouchSensorData();
     captureVideo(function (output) {
@@ -26,8 +31,11 @@ function main() {
         stopCapturingTouchSensorData();
         logger("Video captured. Going to sleep...");
 
-        // try to unlock right after going to sleep
+        // stop interval
+        clearInterval(touchInterval);
+        // try to unlock one more time right after going to sleep
         touchCounter();
+        logger("Total touches registered in session " + touchCount);
         sleep(function () {
             main();
         }, function () {
@@ -86,13 +94,12 @@ function heartbeat() {
 }
 
 function touchCounter() {
-    if (touchSensor.readButtons()) {
+    touchSensor.readButtons();
+    if (touchSensor.m_buttonStates) {
         touchCount++;
         logger("Unlocking touch. Count=" + touchCount);
     }
 }
-
-setInterval(touchCounter, 1000);
 
 setInterval(heartbeat, 1000);
 
