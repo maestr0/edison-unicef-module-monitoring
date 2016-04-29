@@ -24,7 +24,7 @@ try:
     print("Starting ISR for pin ")
     x.dir(mraa.DIR_IN)
     x.isr(mraa.EDGE_BOTH, test, x)
-    var = raw_input("Press ENTER to stop")
-    x.isrExit()
+    #var = raw_input("Press ENTER to stop")
+    #x.isrExit()
 except ValueError as e:
     print(e)
