@@ -21,6 +21,7 @@ setTimeout(main, 1000);
 function main() {
     // do work
     logger("doing work for 5s");
+    
     setTimeout(work, 5000);
 }
 
