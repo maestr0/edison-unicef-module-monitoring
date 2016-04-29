@@ -76,10 +76,15 @@ function logger(msg) {
 }
 
 function heartbeat() {
-    logger("beep " + touchInterruptPin.getPin());
+
+    if(touchInterruptPin) {
+        logger("beep " + touchInterruptPin.getPin());
+    }else {
+        logger("ERROR touchInterruptPin is UNDEFINED");
+    }
 }
 
-setInterval(heartbeat, 10000);
+setInterval(heartbeat, 1000);
 
 
 
