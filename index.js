@@ -15,6 +15,7 @@ var inactivityThreshold = 5;
 function isrCallback() {
     // logger("ISR callback");
 }
+logger("START MONITORING");
 
 setTimeout(main, 1000);
 
@@ -26,8 +27,10 @@ function main() {
 }
 
 function work() {
-    logger("heavy work done");
-    setTimeout(main, 1000);
+    logger("heavy work done. Going to sleep...");
+
+    sleep();
+    main();
 }
 
 function incrementInactivityCount() {
