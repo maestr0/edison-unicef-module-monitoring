@@ -19,7 +19,8 @@ main();
 function main() {
     logger("Collecting data for 5s");
     startCapturingTouchSensorData();
-    captureVideo(function () {
+    captureVideo(function (output) {
+        logger(output);
         stopCapturingTouchSensorData();
         logger("Video captured. Going to sleep...");
         sleep(function () {
@@ -76,7 +77,7 @@ function heartbeat() {
     logger("beep");
 }
 
-setInterval(heartbeat, 10000);
+// setInterval(heartbeat, 10000);
 
 
 
