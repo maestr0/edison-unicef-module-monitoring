@@ -35,7 +35,7 @@ function isrCallback() {
     });
 }
 
-setTimeout(main, 1000);
+// setTimeout(main, 1000);
 
 function main() {
     lock.readLock(function (release) {
