@@ -12,6 +12,7 @@
   "dependencies": {
     "express": "4.13.1",
     "jsupm_lsm9ds0": "0.4.1",
-    "serialport": "3.0.0"
+    "serialport": "3.0.0",
+    "rwlock": "5.0.0"
   }
 }

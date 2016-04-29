@@ -1,6 +1,9 @@
 var mraa = require('mraa');
 var exec = require('child_process').exec;
 var touchSensorDriver = require('jsupm_mpr121');
+var ReadWriteLock = require('rwlock');
+
+var lock = new ReadWriteLock();
 
 var touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
 touchSensor.configAN3944();
@@ -15,27 +18,45 @@ var inactivityCount = 0;
 var inactivityThreshold = 5;
 
 function isrCallback() {
-    if (!isrTriggered) {
-        isrTriggered = true;
-    }
-    logger("ISR callback");
+    lock.readLock(function (release) {
+        // do stuff
+        if (!isrTriggered) {
+
+            lock.writeLock(function (release) {
+                // do stuff
+                isrTriggered = true;
+
+                release();
+            });
+        }
+        logger("ISR callback");
+
+        release();
+    });
 }
 
 setTimeout(main, 1000);
 
 function main() {
-    if (isrTriggered) {
-        // do work
-        logger("doing work for 5s");
-        setTimeout(work, 5000);
-    } else {
-        logger("No ISR. Waiting...");
-        setTimeout(main, 1000);
-    }
+    lock.readLock(function (release) {
+        if (isrTriggered) {
+            // do work
+            logger("doing work for 5s");
+            setTimeout(work, 5000);
+        } else {
+            logger("No ISR. Waiting...");
+            setTimeout(main, 1000);
+        }
+    });
 }
 
 function work() {
-    isrTriggered = false;
+    lock.writeLock(function (release) {
+        // do stuff
+        isrTriggered = false;
+
+        release();
+    });
     setTimeout(main, 1000);
 }
 
