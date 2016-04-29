@@ -37,6 +37,8 @@ function main() {
     });
 }
 
+// batery voltage low = no video capture
+
 function startCapturingTouchSensorData() {
     logger("START capturing touch sensor data");
 }
@@ -74,10 +76,10 @@ function logger(msg) {
 }
 
 function heartbeat() {
-    logger("beep");
+    logger("beep " + touchInterruptPin.getPin());
 }
 
-// setInterval(heartbeat, 10000);
+setInterval(heartbeat, 10000);
 
 
 
