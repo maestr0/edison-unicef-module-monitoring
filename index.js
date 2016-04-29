@@ -1,6 +1,9 @@
 var mraa = require('mraa');
 var exec = require('child_process').exec;
+var touchSensorDriver = require('jsupm_mpr121');
 
+var touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
+touchSensor.configAN3944();
 
 var touchInterruptPin = new mraa.Gpio(8);
 touchInterruptPin.dir(mraa.DIR_IN);
