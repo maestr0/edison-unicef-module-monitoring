@@ -30,7 +30,7 @@ function sleep() {
         if (!error) {
             logger("Command " + command + " executed successfully\n" + stdout);
         } else {
-            logger("ERROR " + stderr + stderr);
+            logger("ERROR  " + stderr + stderr);
         }
     });
 }
