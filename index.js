@@ -29,8 +29,24 @@ function main() {
 function work() {
     logger("heavy work done. Going to sleep...");
 
-    sleep();
-    main();
+    sleep(function () {
+        main();
+    }, function () {
+        logger("Unable to sleep. Rebooting...")
+    });
+}
+
+function sleep(callbackOk, callbackError) {
+    var command = "/home/root/scripts/sleep.sh";
+    exec(command, function (error, stdout, stderr) {
+        if (!error) {
+            // logger("Command " + command + " executed successfully\n" + stdout);
+            callbackOk();
+        } else {
+            logger("ERROR  " + stderr + stderr);
+            callbackError();
+        }
+    });
 }
 
 function incrementInactivityCount() {
@@ -50,17 +66,6 @@ function resetInactivityCount() {
 
 function logger(msg) {
     console.log(msg);
-}
-
-function sleep() {
-    var command = "/home/root/scripts/sleep.sh";
-    exec(command, function (error, stdout, stderr) {
-        if (!error) {
-            logger("Command " + command + " executed successfully\n" + stdout);
-        } else {
-            logger("ERROR  " + stderr + stderr);
-        }
-    });
 }
 
 function heartbeat() {
