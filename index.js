@@ -9,38 +9,45 @@ var touchInterruptPin = new mraa.Gpio(8);
 touchInterruptPin.dir(mraa.DIR_IN);
 touchInterruptPin.isr(mraa.EDGE_BOTH, isrCallback);
 
-var inactivityCount = 0;
-var inactivityThreshold = 5;
-
 function isrCallback() {
-    // logger("ISR callback");
+    // DO NOT ADD ANYTHING HERE, EVEN THE LOGGER CRASHES IT!!!
 }
 logger("START MONITORING");
 
-setTimeout(main, 1000);
+main();
 
 function main() {
-    // do work
-    logger("doing work for 5s");
-
-    setTimeout(work, 5000);
+    logger("Collecting data for 5s");
+    startCapturingTouchSensorData();
+    captureVideo(function () {
+        stopCapturingTouchSensorData();
+        logger("Video captured. Going to sleep...");
+        sleep(function () {
+            main();
+        }, function () {
+            logger("Unable to sleep. Rebooting... (NOT IMPLEMENTED)");
+            // reboot here or something
+            main();
+        });
+    }, function () {
+        stopCapturingTouchSensorData();
+        logger("ERROR when capturing video. Rebooting... (NOT IMPLEMENTED)");
+        main();
+    });
 }
 
-function work() {
-    logger("heavy work done. Going to sleep...");
+function startCapturingTouchSensorData() {
+    logger("START capturing touch sensor data");
+}
 
-    sleep(function () {
-        main();
-    }, function () {
-        logger("Unable to sleep. Rebooting...")
-    });
+function stopCapturingTouchSensorData() {
+    logger("STOP capturing touch sensor data");
 }
 
 function sleep(callbackOk, callbackError) {
     var command = "/home/root/scripts/sleep.sh";
     exec(command, function (error, stdout, stderr) {
         if (!error) {
-            // logger("Command " + command + " executed successfully\n" + stdout);
             callbackOk();
         } else {
             logger("ERROR  " + stderr + stderr);
@@ -49,19 +56,16 @@ function sleep(callbackOk, callbackError) {
     });
 }
 
-function incrementInactivityCount() {
-
-    inactivityCount = inactivityCount + 1;
-    logger("Inactivity count " + inactivityCount);
-    if (inactivityCount >= inactivityThreshold) {
-        resetInactivityCount();
-        sleep();
-    } else {
-        setTimeout(incrementInactivityCount, 1000);
-    }
-}
-function resetInactivityCount() {
-    inactivityCount = 0;
+function captureVideo(callbackOk, callbackError) {
+    var command = "./scripts/fakeFfmpeg.sh";
+    exec(command, function (error, stdout, stderr) {
+        if (!error) {
+            callbackOk(stdout);
+        } else {
+            logger("ERROR  " + stderr + " - " + error);
+            callbackError(stderr);
+        }
+    });
 }
 
 function logger(msg) {
