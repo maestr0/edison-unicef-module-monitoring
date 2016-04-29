@@ -9,21 +9,36 @@ var touchInterruptPin = new mraa.Gpio(8);
 touchInterruptPin.dir(mraa.DIR_IN);
 touchInterruptPin.isr(mraa.EDGE_BOTH, isrCallback);
 
-var isrReady = true;
+var isrTriggered = false;
 
 var inactivityCount = 0;
 var inactivityThreshold = 5;
 
 function isrCallback() {
-    if (isrReady) {
-        isrReady = false;
-        logger("ISR blocked for 2s...");
-        setTimeout(armIsr, 2000);
+    isrTriggered = true;
+    logger("ISR callback");
+}
+
+setTimeout(main, 1000);
+
+function main() {
+    if (isrTriggered) {
+        // do work
+        logger("doing work for 5s");
+        setTimeout(work, 5000);
+    } else {
+        logger("No ISR. Waiting...");
+        setTimeout(main, 1000);
     }
-    incrementInactivityCount();
+}
+
+function work() {
+    isrTriggered = false;
+    setTimeout(main, 1000);
 }
 
 function incrementInactivityCount() {
+
     inactivityCount = inactivityCount + 1;
     logger("Inactivity count " + inactivityCount);
     if (inactivityCount >= inactivityThreshold) {
@@ -33,15 +48,10 @@ function incrementInactivityCount() {
         setTimeout(incrementInactivityCount, 1000);
     }
 }
-
 function resetInactivityCount() {
     inactivityCount = 0;
 }
 
-function armIsr() {
-    isrReady = true;
-    logger("ISR armed");
-}
 
 function logger(msg) {
     console.log(msg);
@@ -62,7 +72,7 @@ function heartbeat() {
     logger("beep");
 }
 
-setInterval(heartbeat, 2000);
+setInterval(heartbeat, 10000);
 
 
 
