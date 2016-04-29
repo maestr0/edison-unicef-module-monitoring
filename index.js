@@ -7,12 +7,14 @@ touchSensor.configAN3944();
 
 var touchInterruptPin = new mraa.Gpio(8);
 touchInterruptPin.dir(mraa.DIR_IN);
-touchInterruptPin.isr(mraa.EDGE_BOTH, isrCallback);
+touchInterruptPin.isr(mraa.EDGE_BOTH, isrTouchSensorCallback);
 
-function isrCallback() {
+function isrTouchSensorCallback() {
     // DO NOT ADD ANYTHING HERE, EVEN THE LOGGER CRASHES IT!!!
 }
 logger("START MONITORING");
+
+var touchCount = 0;
 
 main();
 
@@ -36,8 +38,6 @@ function main() {
         main();
     });
 }
-
-// batery voltage low = no video capture
 
 function startCapturingTouchSensorData() {
     logger("START capturing touch sensor data");
@@ -81,6 +81,14 @@ function heartbeat() {
     }
     logger("beep ");
 }
+
+function touchCounter() {
+    touchSensor.readButtons();
+    touchCount++;
+    logger("Unlocking touch. Count=" + touchCount);
+}
+
+setInterval(touchCounter, 1000);
 
 setInterval(heartbeat, 1000);
 
