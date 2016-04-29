@@ -95,7 +95,9 @@ function heartbeat() {
 
 function touchCounter() {
     touchSensor.readButtons();
-    if (touchSensor.m_buttonStates) {
+    var isTouch = touchSensor.m_buttonStates & 1;
+    logger("isTouch=" + isTouch);
+    if (isTouch) {
         touchCount++;
         logger("Unlocking touch. Count=" + touchCount);
     }
