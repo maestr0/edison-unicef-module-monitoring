@@ -25,6 +25,9 @@ function main() {
         logger(output);
         stopCapturingTouchSensorData();
         logger("Video captured. Going to sleep...");
+
+        // try to unlock right after going to sleep
+        touchCounter();
         sleep(function () {
             main();
         }, function () {
@@ -83,9 +86,10 @@ function heartbeat() {
 }
 
 function touchCounter() {
-    touchSensor.readButtons();
-    touchCount++;
-    logger("Unlocking touch. Count=" + touchCount);
+    if (touchSensor.readButtons()) {
+        touchCount++;
+        logger("Unlocking touch. Count=" + touchCount);
+    }
 }
 
 setInterval(touchCounter, 1000);
