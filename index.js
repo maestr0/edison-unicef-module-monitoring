@@ -11,12 +11,31 @@ touchInterruptPin.isr(mraa.EDGE_BOTH, isrCallback);
 
 var isrReady = true;
 
+var inactivityCount = 0;
+var inactivityThreshold = 5;
+
 function isrCallback() {
     if (isrReady) {
         isrReady = false;
         logger("ISR blocked for 2s...");
         setTimeout(armIsr, 2000);
     }
+    incrementInactivityCount();
+}
+
+function incrementInactivityCount() {
+    inactivityCount = inactivityCount + 1;
+    logger("Inactivity count " + inactivityCount);
+    if (inactivityCount >= inactivityThreshold) {
+        resetInactivityCount();
+        sleep();
+    } else {
+        setTimeout(incrementInactivityCount, 1000);
+    }
+}
+
+function resetInactivityCount() {
+    inactivityCount = 0;
 }
 
 function armIsr() {
