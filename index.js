@@ -57,6 +57,7 @@ function work() {
 
         release();
     });
+    
     setTimeout(main, 1000);
 }
 
