@@ -14,13 +14,14 @@ var isrReady = true;
 function isrCallback() {
     if (isrReady) {
         isrReady = false;
-        logger("ISR callback()");
+        logger("ISR blocked for 2s...");
         setTimeout(armIsr, 2000);
     }
 }
 
 function armIsr() {
     isrReady = true;
+    logger("ISR armed");
 }
 
 function logger(msg) {
