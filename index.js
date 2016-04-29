@@ -75,7 +75,6 @@ function resetInactivityCount() {
     inactivityCount = 0;
 }
 
-
 function logger(msg) {
     console.log(msg);
 }
