@@ -10,8 +10,8 @@
     "node": ">=0.10.0"
   },
   "dependencies": {
-    "jsupm_lsm9ds0": "0.4.1",
     "express": "4.13.1",
+    "jsupm_lsm9ds0": "0.4.1",
     "serialport": "3.0.0"
   }
 }
