@@ -6,8 +6,18 @@ var touchInterruptPin = new mraa.Gpio(8);
 touchInterruptPin.dir(mraa.DIR_IN);
 touchInterruptPin.isr(mraa.EDGE_BOTH, isrCallback);
 
+var isrReady = true;
+
 function isrCallback() {
-    logger("ISR callback()");
+    if (isrReady) {
+        isrReady = false;
+        logger("ISR callback()");
+        setTimeout(armIsr, 2000);
+    }
+}
+
+function armIsr() {
+    isrReady = true;
 }
 
 function logger(msg) {
