@@ -13,7 +13,7 @@ var inactivityCount = 0;
 var inactivityThreshold = 5;
 
 function isrCallback() {
-    logger("ISR callback");
+    // logger("ISR callback");
 }
 
 setTimeout(main, 1000);
@@ -21,7 +21,7 @@ setTimeout(main, 1000);
 function main() {
     // do work
     logger("doing work for 5s");
-    
+
     setTimeout(work, 5000);
 }
 
