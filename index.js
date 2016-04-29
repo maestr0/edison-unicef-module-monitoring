@@ -15,7 +15,9 @@ var inactivityCount = 0;
 var inactivityThreshold = 5;
 
 function isrCallback() {
-    isrTriggered = true;
+    if (!isrTriggered) {
+        isrTriggered = true;
+    }
     logger("ISR callback");
 }
 
