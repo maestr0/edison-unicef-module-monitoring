@@ -7,8 +7,8 @@ touchSensor.configAN3944();
 
 var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
 i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-i2c.writeReg(0x5D,0x07 );
-
+i2c.writeReg(0x5D, 0x07);
+i2c.writeReg(0x41, 255);
 
 var touchInterruptPin = new mraa.Gpio(8);
 touchInterruptPin.dir(mraa.DIR_IN);
@@ -66,8 +66,8 @@ function stopCapturingTouchSensorData() {
 function sleep(callbackOk, callbackError) {
     var command = "/home/root/scripts/sleep.sh";
     var blastTouchReadInterval = setInterval(function () {
-        touchSensor.m_buttonStates;
-    }, 0);
+        var mButtonStates = touchSensor.m_buttonStates;
+    }, 10);
 
     exec(command, function (error, stdout, stderr) {
         clearInterval(blastTouchReadInterval);
