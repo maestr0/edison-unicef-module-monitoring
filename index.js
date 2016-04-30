@@ -5,6 +5,11 @@ var touchSensorDriver = require('jsupm_mpr121');
 var touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
 touchSensor.configAN3944();
 
+var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
+i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
+i2c.writeReg(0x5D,0x07 );
+
+
 var touchInterruptPin = new mraa.Gpio(8);
 touchInterruptPin.dir(mraa.DIR_IN);
 touchInterruptPin.isr(mraa.EDGE_BOTH, isrTouchSensorCallback);
