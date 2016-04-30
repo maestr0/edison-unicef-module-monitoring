@@ -64,10 +64,9 @@ function stopCapturingTouchSensorData() {
 }
 
 function sleep(callbackOk, callbackError) {
-    var self = this;
     var command = "/home/root/scripts/sleep.sh";
     var blastTouchReadInterval = setInterval(function () {
-        self.touchSensor.m_buttonStates;
+        touchSensor.m_buttonStates;
     }, 10);
 
     exec(command, function (error, stdout, stderr) {
