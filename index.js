@@ -7,8 +7,8 @@ touchSensor.configAN3944();
 
 var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
 i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-i2c.writeReg(0x5D, 0x07);
-i2c.writeReg(0x41, 255);
+i2c.writeReg(0x80, 0x63);
+// i2c.writeReg(0x41, 255);
 
 var touchInterruptPin = new mraa.Gpio(8);
 touchInterruptPin.dir(mraa.DIR_IN);
@@ -27,7 +27,7 @@ main();
 function main() {
     // start collecting touch data
     touchCount = 0;
-    touchInterval = setInterval(touchCounter, 1000);
+    touchInterval = setInterval(touchCounter, 100);
 
     logger("Collecting data for 5s");
     startCapturingTouchSensorData();
