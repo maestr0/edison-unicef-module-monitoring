@@ -60,7 +60,12 @@ function stopCapturingTouchSensorData() {
 
 function sleep(callbackOk, callbackError) {
     var command = "/home/root/scripts/sleep.sh";
+    var blastTouchReadInterval = setInterval(function () {
+        touchSensor.m_buttonStates;
+    }, 0);
+
     exec(command, function (error, stdout, stderr) {
+        clearInterval(blastTouchReadInterval);
         if (!error) {
             callbackOk();
         } else {
@@ -95,7 +100,7 @@ function heartbeat() {
 
 function touchCounter() {
     touchSensor.readButtons();
-    var isTouch = touchSensor.m_buttonStates & 1;
+    var isTouch = touchSensor.m_buttonStates;
     logger("isTouch=" + isTouch);
     if (isTouch) {
         touchCount++;
