@@ -17,7 +17,7 @@ touchInterruptPin.isr(mraa.EDGE_BOTH, isrTouchSensorCallback);
 function isrTouchSensorCallback() {
     // DO NOT ADD ANYTHING HERE, EVEN THE LOGGER CRASHES IT!!!
 }
-logger("START MONITORING");
+logger("START MONITORING - PAWEL TEST");
 
 var touchCount = 0;
 var touchInterval = null;
@@ -27,7 +27,7 @@ main();
 function main() {
     // start collecting touch data
     touchCount = 0;
-    touchInterval = setInterval(touchCounter, 10);
+    touchInterval = setInterval(touchCounter, 1000);
 
     logger("Collecting data for 5s");
     startCapturingTouchSensorData();
@@ -64,10 +64,10 @@ function stopCapturingTouchSensorData() {
 }
 
 function sleep(callbackOk, callbackError) {
-    var command = "/home/root/scripts/sleep.sh";
+    var command = "/home/root/scripts/sleepDISABLED.sh";
     var blastTouchReadInterval = setInterval(function () {
         touchSensor.m_buttonStates;
-    }, 10);
+    }, 1000);
 
     exec(command, function (error, stdout, stderr) {
         clearInterval(blastTouchReadInterval);

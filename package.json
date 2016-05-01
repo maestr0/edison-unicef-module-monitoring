@@ -1,11 +1,8 @@
 {
-  "name": "mpr-121-edison",
+  "name": "unicef-monitoring-app",
   "description": "",
   "version": "0.0.0",
-  "main": "isr-test.js",
-  "scripts": {
-    "start": "node isr-test.js"
-  },
+  "main": "index.js",
   "engines": {
     "node": ">=0.10.0"
   },
