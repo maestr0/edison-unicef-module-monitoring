@@ -15,14 +15,14 @@
         "name": "README.md"
       },
       "edison-i2c-touch.xdk": {
-        "previousModTime": 1461678546000,
-        "modified": 1461678546000,
+        "previousModTime": 1462053320000,
+        "modified": 1462053320000,
         "seen": true,
         "name": "edison-i2c-touch.xdk"
       },
       "edison-i2c-touch.xdke": {
-        "previousModTime": 1461801619000,
-        "modified": 1461801619000,
+        "previousModTime": 1462053769000,
+        "modified": 1462053769000,
         "seen": true,
         "name": "edison-i2c-touch.xdke"
       },
@@ -63,8 +63,8 @@
         "name": "main.js"
       },
       "package.json": {
-        "previousModTime": 1461799082000,
-        "modified": 1461799082000,
+        "previousModTime": 1461805530000,
+        "modified": 1461805530000,
         "seen": true,
         "name": "package.json"
       },
@@ -87,8 +87,8 @@
         "name": ".gitignore"
       },
       "app.js": {
-        "previousModTime": 1461802086000,
-        "modified": 1461802086000,
+        "previousModTime": 1461805441000,
+        "modified": 1461805441000,
         "seen": true,
         "name": "app.js"
       },
@@ -97,12 +97,14 @@
         "modified": 1461384530000,
         "seen": true,
         "name": "npm-debug.log"
+      },
+      "touch-test.js": {
+        "previousModTime": 1461806314000,
+        "modified": 1461806314000,
+        "seen": true,
+        "name": "touch-test.js"
       }
     },
-    "boardFileStatus": {
-      "app.js": {
-        "previousModTime": 1461802090100
-      }
-    }
+    "boardFileStatus": {}
   }
 }

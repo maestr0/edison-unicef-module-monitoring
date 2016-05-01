@@ -139,5 +139,8 @@
       }
     },
     "testDirectory": "test"
+  },
+  "iot-tab": {
+    "killDelay": "1000"
   }
 }

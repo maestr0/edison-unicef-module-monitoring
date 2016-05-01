@@ -48,6 +48,7 @@ var powerBoostPin = new mraa.Gpio(12);
 powerBoostPin.dir(mraa.DIR_OUT);
 
 
+
 powerBoostPin.write(0);
 
 
@@ -286,13 +287,11 @@ function soapHasBeenTouched() {
     touchSensor.readButtons();
 
     var isTouched = touchSensor.m_buttonStates;
-    logger("isTouch status:" + isTouched);
-    if (isTouched) {
-        logger("soap");
+            logger("isTouch status:" + isTouched);
 
+    if (isTouched) {
         return true;
     } else {
-
         return false;
     }
 }
