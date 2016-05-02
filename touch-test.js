@@ -1,3 +1,4 @@
+console.log("test");
 var logFile = require('fs');
 var logError = require('fs');
 
@@ -65,6 +66,7 @@ if (i2c.readReg(0x5C) != 0) {
     touchSensor.configAN3944();
     i2c.writeReg(touchThresholdAddress, touchThreshold);
 
+    
     //Pin setup for touch sensor interrupt
     var touchInterruptPin = new mraa.Gpio(8);
     touchInterruptPin.dir(mraa.DIR_IN);
