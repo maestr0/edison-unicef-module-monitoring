@@ -38,12 +38,10 @@ process.env.REBOOT_COUNT;
 
 
 
-
-
-
 // "q": "latest",
 // "jsupm_mpr121": "latest"
-console.log("starting monitoring app 6");
+
+
 var logFile  = require('fs');
 var logError = require('fs');
 
@@ -65,9 +63,10 @@ var ErrorLogFileName       = "/home/root/log/error.log"
 var dataLogFileName        = dataLogFileDirectory + "currentTouchData" ;
 var templateDataLogTouch   = tippyTapID + ",C," ;
 
-var mraa = require('mraa');
+var appVersion = 16 ;
 
-var uart = new mraa.Uart(0); //Default
+
+console.log("Starting monitoring app v" + appVersion  + "\n\r");
 var serialPath = "/dev/ttyMFD2" ;//uart.getDevicePath(); //Default general purpose port "/dev/ttyMFD1" - Intel(R) Edison; "/dev/ttyS0" - Intel(R) Galileo
 var SerialPort = require("serialport").SerialPort;
 var serialPort = new SerialPort(serialPath, {
@@ -75,9 +74,16 @@ var serialPort = new SerialPort(serialPath, {
 });
 
 serialPort.on("open",function() {
-    serialPort.write("This is a test.\n", function(err, results) { //Write data
+    
+    serialPort.write("Starting monitoring app v" + appVersion  + "\n\r", function(err, results) { //Write data
     });
 });
+
+
+var mraa = require('mraa');
+
+var uart = new mraa.Uart(0); //Default
+
 
 
 //---------------------------------------------
@@ -165,9 +171,12 @@ var processLogQueue = function () {
 
     } else {
         console.log("log queue empty, sleeping for 1s");
+        
         setTimeout(processLogQueue, 1000);
     }
+    
 };
+
 
 //setTimeout(processLogQueue, 1000);
 
@@ -176,23 +185,22 @@ var exec = require('child_process').exec;
 
 var takePicture = function () {
     
+    console.log( "\n\r ...Taking pictures... ");
     
-    serialPort.write( "Taking pictures... ", function(err, results) {});
+    serialPort.write( "\n\r ...Taking pictures... \n\r", function(err, results) {});
     
-    
-// SSFSFDQF
     
     var command = "/home/root/ffmpeg/ffmpeg -an -r 4 -s 1024x768 -f video4linux2 -ss 5 -i /dev/video0 -vframes 200 /media/sdcard/images/node-test-%3d.jpeg";
     
     // for movie
-    //var command = "/home/root/ffmpeg/ffmpeg -s 1024x768 -f video4linux2  -i /dev/video0 -f mpeg1video -b:v 800k -r 2 -t 34 /media/sdcard/images/out.mpg";
+    //var command = "/home/root/ffmpeg/ffmpeg -s 1024x768 -f video4linux2  -i /dev/video0 -f mpeg1video -b:v 800k  -t 34 /media/sdcard/images/out.mpg";
     //var command = "/home/root/ffmpeg/ffmpeg -s 1024x768 -f video4linux2  -i /dev/video0 -f mpeg1video -b 800k -r 2 -t 10 /home/root/out.mpg";
 
     exec(command, function (error, stdout, stderr) {
         
         if (!error) {
                 serialPort.write( "image captured successfully", function(err, results) {});
-            
+                console.log(" images captured successfully");
             msg = "image captured successfully";
         } else {
             
@@ -201,9 +209,7 @@ var takePicture = function () {
             
         }
         
-        
-        console.log("return to 3.3 v");            
-        powerBoostPin.write(0);
+        powerUsbPortOff();
         
         takingPictures = false;
 
@@ -219,29 +225,40 @@ var takePicture = function () {
 
 
 
+
 //---------------------- RUN LOOPS --------------------------
-var powerUsbPort = function() {
+var powerUsbPortOn = function() {
 powerBoostPin.write(1);
+console.log("soap wire touched, boost power to 5v");  
+serialPort.write( "wire pressed @ " + new Date().getTime(), function(err, results) {});
 };
         
+var powerUsbPortOff = function() {
+powerBoostPin.write(0);
+console.log("Back to 3.3 v");  
+serialPort.write( "Back to 3.3 v ", function(err, results) {});
+
+};
+
+setInterval (function() {
+    console.log("alive \n");
+    serialPort.write("alive\n\r", function(err, results) {});
+    
+}, 2000);
+
+
 //------- SOAP TOUCHING
 setInterval(function () {
 
+    
     if (soapHasBeenTouched()) {
             
-        serialPort.write( "Setting voltage to 5V \n", function(err, results) {});
-        
-        setTimeout(powerUsbPort, 3500);
-
-         serialPort.write( "Button  pressed @ " + new Date().getTime(), function(err, results) {});
-        
-    
+        powerUsbPortOn(); 
         
          if (!takingPictures) {
              
              takingPictures = true;
-             
-           setTimeout(takePicture, 9000 );
+           setTimeout(takePicture, 3000 );
              
         }
         
@@ -295,9 +312,10 @@ setInterval(function () {
 function irqTouchCallback() {
     
     // Leave this callback empty, only for waking up the device
-    // console.log("IRQ callback() " + new Date().getTime());
-    serialPort.write("Touched !!!!.\n", function(err, results) {
-        });
+        console.log("irqTouchCallback \n");
+        serialPort.write("Touched !!!!\n\r", function(err, results) {});
+    
+    
 }
 
 function gyroInterruptCallBack(){    
@@ -311,7 +329,12 @@ function gyroInterruptCallBack(){
 
 function soapHasBeenTouched() {
     touchSensor.readButtons();
-    return (touchSensor.m_buttonStates & 1);
+    var isTouched = touchSensor.m_buttonStates & 1 ;
+    if (isTouched){
+        console.log("soap\n\r");  
+        serialPort.write( "soap " , function(err, results) {});
+    }  
+    return (isTouched);
 }
 
 function setupGyroscope(){
