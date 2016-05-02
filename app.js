@@ -103,10 +103,10 @@ var touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS,
 
 // --- Use wire here since UPM jsupm_mpr121 has a bug on writeRegisters function --------------------- //
 var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);  
-i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);  
 
+var touchSensorI2CWorks = i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);  
 
-if (i2c.readReg(0x5C) != 0){
+if (touchSensorI2CWorks){
     touchSensor.configAN3944(); 
     i2c.writeReg(touchThresholdAddress,touchThreshold);
 
@@ -328,6 +328,8 @@ function gyroInterruptCallBack(){
 //----------------- UTILITY FUNCTIONS --------------------------
 
 function soapHasBeenTouched() {
+    if(i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR) === 0) return false; // if chip failed
+    
     touchSensor.readButtons();
     var isTouched = touchSensor.m_buttonStates & 1 ;
     if (isTouched){
@@ -351,6 +353,7 @@ gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1
 }
 
 function thereIsARotation(){
+    if( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G ) === 255) return false; // if chip failed return false all the time
     if (gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_SRC_G ) >= weAreRotating ) return true;
     return false;
 }
