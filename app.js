@@ -375,3 +375,13 @@ function isEmpty(obj) {
 
     return true && JSON.stringify(obj) === JSON.stringify({});
 }
+
+// exit on ^C
+process.on('SIGINT', function()
+{
+    sensor = null;
+    sensorObj.cleanUp();
+    sensorObj = null;
+    console.log("Exiting.");
+    process.exit(0);
+});
