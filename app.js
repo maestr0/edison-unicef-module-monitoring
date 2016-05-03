@@ -1,3 +1,5 @@
+var appState = "active";
+
 // HTTP server just for status
 var express = require('express');
 var app = express();
@@ -11,9 +13,43 @@ app.get('/status', function (req, res) {
     res.header('Access-Control-Allow-Methods', 'GET');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
     //FIXME: implement status
+    
+    var sensorsOverallStatus = "OK" ;
+    var IMUStatus            = "OK" ;
+    var capacitiveStatus     = "OK" ;
+    
+    // IMU SENSOR STATUS SYSTEM ------------
+    if (isEmpty(gyroAccelCompass)) {
+        IMUStatus = "IMU damaged. ";
+        sensorsOverallStatus = "FAIL";
+    }
+    else{
+        if( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G ) === 255) {
+            IMUStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
+            sensorsOverallStatus = "ERROR";
+        }
+        if( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_WHO_AM_I_XM )  === 255) {
+            IMUStatus += "Accelerometer unreachable. "; // if chip failed return false all the time
+            sensorsOverallStatus = "ERROR";
+        }
+    }
+        
+    
+    // CAPACITIVE SENSOR STATUS SYSTEM ------------
+    if (!touchSensorI2CWorks) {
+        capacitiveStatus     = "Touch sensor damaged";
+        sensorsOverallStatus = "FAIL";
+    }
+    else if ( i2c.readReg(0x5D) != 0x24){
+        capacitiveStatus     = "Touch sensor unreachable";
+        sensorsOverallStatus = "ERROR";    
+    }
+    
     var device = req.query.device;
     res.send({
-        "status": "ok"
+        "status": sensorsOverallStatus,
+        "IMU": IMUStatus,
+        "capacitive": capacitiveStatus
     });
 });
 
@@ -36,12 +72,6 @@ process.env.REBOOT_COUNT;
 
 
 
-
-
-// "q": "latest",
-// "jsupm_mpr121": "latest"
-
-
 var logFile  = require('fs');
 var logError = require('fs');
 
@@ -58,9 +88,9 @@ var touchThreshold         = 255  ; // lowest sensitivity
 
 var tippyTapID             = "XX"; //TODO: we need a way to read the tippy tap id number to add it to fileNames
 var touchDataID            = 0;  //TODO: we need a way to read the latest data id for touchnumber to add it to fileNames
-var dataLogFileDirectory   = "/media/sdcard/" ;
-var ErrorLogFileName       = "/home/root/log/error.log"
-var dataLogFileName        = dataLogFileDirectory + "currentTouchData" ;
+
+var ErrorLogFileName       = process.env.MODULE_DATA_DIR + "error.log"
+var dataLogFileName        = process.env.MODULE_DATA_DIR + "currentTouchData" ;
 var templateDataLogTouch   = tippyTapID + ",C," ;
 
 var appVersion = 16 ;
@@ -139,11 +169,8 @@ else {
     var gyroInterruptPin =  new mraa.Gpio(13);
     gyroInterruptPin.dir(mraa.DIR_IN);
     gyroInterruptPin.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
-
     
 }
-
-
 
 
 var c = 0;
@@ -151,9 +178,7 @@ var c2 = 0;
 var queue = [];
 
 var processLogQueue = function () {
-
     console.log("queue processing...");
-
     var topElement = queue.pop();
 
     if (topElement) {
@@ -241,8 +266,8 @@ serialPort.write( "Back to 3.3 v ", function(err, results) {});
 };
 
 setInterval (function() {
-    console.log("alive \n");
-    serialPort.write("alive\n\r", function(err, results) {});
+    console.log(appState  + "\n");
+    serialPort.write(appState  + "\n\r", function(err, results) {});
     
 }, 2000);
 
@@ -340,17 +365,26 @@ function soapHasBeenTouched() {
 }
 
 function setupGyroscope(){
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x60 );
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG1_G, 0x0F );
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG2_G, 0x00 );
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x88 );
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00 );
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x60 ); //0x60 is latched interrupt on Z axis
 
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_TSH_ZH_G, 0x25 ); //set threshold for high rotation speed
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG1_G, 0x8F );     //set Frequency of Gyro sensing (ODR) and axis enabled (x,y,z)
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x7F ); //set minimum rotation duration to trigger interrupt (based on frequency)
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_TSH_ZH_G, 0x25 );   //set threshold for positive rotation speed
 
-
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG2_G, 0x00 ); // normal mode for filtering data
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x88 ); // interrupt enabled, active high, DRDY enabled
+//gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00 ); // all default values
 
 }
+
+function setupAccelerometer(){
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG1_XM,0x64); //set Frequency of accelero sensing (ODR is 25 Hz) and axis enabled (z)
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_DURATION, 0x40 ); // set minimum acceleration duration to trigger interrupt
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_THS, 0x78 ); // set threshold for slightly below 1G value to trigger interrupt (based on 2G scale in accelero)
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG3_XM, 0x20); //enable pinXM for acclero interrupt
+}
+
+
 
 function thereIsARotation(){
     if( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G ) === 255) return false; // if chip failed return false all the time
