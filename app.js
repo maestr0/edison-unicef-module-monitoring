@@ -1,5 +1,12 @@
 var appState = "active";
 
+var capacitiveSensorInterruptPin = 8 ;
+
+var moduleIsBeingTransportedInterruptPin = 10 ;
+var horizontalPositionInterruptPin = 11 ;
+var GyroscopeInterruptPin = 12 ;
+
+
 // HTTP server just for status
 var express = require('express');
 var app = express();
@@ -9,6 +16,7 @@ app.get('/', function (req, res) {
 });
 
 app.get('/status', function (req, res) {
+    appState="disabled";
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -44,6 +52,8 @@ app.get('/status', function (req, res) {
         capacitiveStatus     = "Touch sensor unreachable";
         sensorsOverallStatus = "ERROR";    
     }
+    
+    appState="active";
     
     var device = req.query.device;
     res.send({
@@ -141,7 +151,7 @@ if (touchSensorI2CWorks){
     i2c.writeReg(touchThresholdAddress,touchThreshold);
 
     //Pin setup for touch sensor interrupt
-    var touchInterruptPin = new mraa.Gpio(8);
+    var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
     touchInterruptPin.dir(mraa.DIR_IN);
     touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
 }
@@ -166,7 +176,7 @@ else {
     gyroAccelCompass.init();                          // Initialize the device with default values
     setupGyroscope();
     //Pin setup for gyroscope interrupt
-    var gyroInterruptPin =  new mraa.Gpio(13);
+    var gyroInterruptPin =  new mraa.Gpio(GyroscopeInterruptPin);
     gyroInterruptPin.dir(mraa.DIR_IN);
     gyroInterruptPin.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
     
@@ -411,6 +421,12 @@ function isEmpty(obj) {
     }
 
     return true && JSON.stringify(obj) === JSON.stringify({});
+}
+
+function logger(msg) {
+    serialPort.write(msg + "\n\r", function (err, results) {
+    });
+    console.log(msg);
 }
 
 // exit on ^C
