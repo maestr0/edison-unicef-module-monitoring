@@ -19,10 +19,12 @@ var GyroscopeInterruptPin = 12 ;
 var pushButtonLightPin    = 13 ;
 
 process.env.MODULE_DATA_DIR = "/media/sdcard/data";
-process.env.SCRIPTS; // /home/root/scripts
-process.env.REBOOT_COUNT = 23;
+process.env.SCRIPTS = "/home/root/scripts";
+process.env.REBOOT_COUNT_PATH = "/home/root/REBOOT_COUNT";
 process.env.TT_ID = "X" ;
+var rebootCount = 23;
 
+var dataFileNamePrefix = generateID();
 var gyroRunLoopInterval   = 1000 ; // in milliseconds
 var soapRunLoopInterval   = 100 ; // in milliseconds
 
@@ -38,7 +40,6 @@ var tippyTapID             = "XX"; //TODO: we need a way to read the tippy tap i
 var touchDataID            = 0;  //TODO: we need a way to read the latest data id for touchnumber to add it to fileNames
 
 var ErrorLogFileName       = process.env.MODULE_DATA_DIR + "error.log"
-var dataLogFileName        = process.env.MODULE_DATA_DIR + "/currentTouchData" ;
 var templateDataLogTouch   = process.env.TT_ID + ",C," ;
 
 var serialPath = "/dev/ttyMFD2" ;
@@ -150,12 +151,8 @@ var takingPictures = false;
 
 var takePicture = function () {
     logger(" ...Taking pictures... ");
-        
-    var command = "/home/root/ffmpeg/ffmpeg -an -r 4 -s 1024x768 -f video4linux2 -ss 5 -i /dev/video0 -vframes 200 /media/sdcard/images/node-test-%3d.jpeg";
-    
-    // for movie
-    //var command = "/home/root/ffmpeg/ffmpeg -s 1024x768 -f video4linux2  -i /dev/video0 -f mpeg1video -b:v 800k  -t 34 /media/sdcard/images/out.mpg";
-    //var command = "/home/root/ffmpeg/ffmpeg -s 1024x768 -f video4linux2  -i /dev/video0 -f mpeg1video -b 800k -r 2 -t 10 /home/root/out.mpg";
+
+    var command = process.env.SCRIPTS + "/capture.sh " + dataFileNamePrefix;
 
     exec(command, function (error, stdout, stderr) {
         
@@ -170,7 +167,7 @@ var takePicture = function () {
         }
         
         powerUsbPortOff();
-        
+        dataFileNamePrefix = generateID();
         takingPictures = false;
         
         logFile.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
@@ -219,7 +216,7 @@ setInterval(function () {
              
         }
         
-          logFile.appendFile(dataLogFileName, templateDataLogTouch + process.env.REBOOT_COUNT + ',' + (touchDataID++) + ',' + Date.now()  + '\n', encoding = 'utf8',
+          logFile.appendFile( process.env.MODULE_DATA_DIR + '/' + dataFileNamePrefix + ".txt", templateDataLogTouch + process.env.REBOOT_COUNT + ',' + (touchDataID++) + ',' + Date.now()  + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
                     console.error("Touch failed to record on sdcard");
@@ -502,4 +499,14 @@ function touchSensorWorks(){
         soapSensorIsDamaged = true;
     }  
     return touchSensorI2CWorks;
+}
+
+function generateID() {
+    
+ return   rebootCount + '_' + currentDate() + '_' + "RANDOM_SHIT";
+    
+}
+
+function currentDate() {
+    return "2016_05_04-22_51_43";
 }
