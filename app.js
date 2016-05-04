@@ -47,6 +47,7 @@ var serialPort;
 var powerBoost;
 var touchSensor;
 var soapSensorIsDamaged = false;
+var IMUSensorIsDamaged  = false;
 var gyroAccelCompass = new IMUClass.LSM9DS0()  ;
 var app;
 
@@ -453,6 +454,7 @@ function setupMonitoring(){
     gyroAccelCompass = new IMUClass.LSM9DS0()  ;
     
     if( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G ) === 255){
+        IMUSensorIsDamaged = true;
         console.error("NO GYROSCOPE");
     }
     else {
@@ -477,7 +479,7 @@ function setupMonitoring(){
     
     var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
     pushButtonLight.dir(mraa.DIR_OUT);
-    pushButtonLight.write(1);
+    if (!(soapSensorIsDamaged || IMUSensorIsDamaged) )pushButtonLight.write(1);
     
     setTimeout(function(){
         pushButtonLight.write(0);
