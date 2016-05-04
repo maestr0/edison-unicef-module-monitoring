@@ -1,20 +1,63 @@
-var appState = "active";
+var appVersion = 16 ;
+
+var mraa     = require('mraa');
+var express  = require('express');
+var logFile  = require('fs');
+var logError = require('fs');
+var SerialPort = require("serialport").SerialPort;
+var touchSensorDriver = require('jsupm_mpr121');
+var IMUClass         = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using default parameters (bus 1, gyro addr 6b, xm addr 1d)
+var exec = require('child_process').exec;
+
+var appState = "initialize";
 
 var capacitiveSensorInterruptPin = 8 ;
-
+var voltageBoostPin = 9 ;
 var moduleIsBeingTransportedInterruptPin = 10 ;
 var horizontalPositionInterruptPin = 11 ;
 var GyroscopeInterruptPin = 12 ;
+var pushButtonLightPin    = 13 ;
+
+process.env.MODULE_DATA_DIR; // /media/sdcard/data
+process.env.SCRIPTS; // /home/root/scripts
+process.env.REBOOT_COUNT;
 
 
-// HTTP server just for status
-var express = require('express');
-var app = express();
+var gyroRunLoopInterval   = 500 ; // in milliseconds
+var soapRunLoopInterval   = 100 ; // in milliseconds
+
+var gyroZaxisTransient     = 0x20 ; //0o00100000 ;/
+var gyroZaxisLatchedHigh   = 0x60 ; //01100000 ;
+var gyroZaxisLatchedBoth   = 0x70 ; //01100000 ;
+var gyroInterruptActive    = 0x80 ; // 10000000 ;
+var weAreRotating          = 0x60 ; //0x40 is interrupt triggered
+var touchThresholdAddress  = 0x41 ; // address to set the touch threshold, 
+var touchThreshold         = 255  ; // lowest sensitivity
+
+var tippyTapID             = "XX"; //TODO: we need a way to read the tippy tap id number to add it to fileNames
+var touchDataID            = 0;  //TODO: we need a way to read the latest data id for touchnumber to add it to fileNames
+
+var ErrorLogFileName       = process.env.MODULE_DATA_DIR + "error.log"
+var dataLogFileName        = process.env.MODULE_DATA_DIR + "currentTouchData" ;
+var templateDataLogTouch   = tippyTapID + ",C," ;
+
+var serialPath = "/dev/ttyMFD2" ;
+var i2c; 
+var touchSensorI2CWorks ;
+var serialPort;
+var powerBoost;
+var touchSensor;
+var gyroAccelCompass = new IMUClass.LSM9DS0()  ;
+var app;
+
+
+
+setupMonitoring();
+
 
 app.get('/', function (req, res) {
     res.send('Monitoring');
 });
-
 app.get('/status', function (req, res) {
     appState="disabled";
     res.header('Access-Control-Allow-Origin', '*');
@@ -62,131 +105,19 @@ app.get('/status', function (req, res) {
         "capacitive": capacitiveStatus
     });
 });
-
-app.set('port', (process.env.MONITORING_PORT || 3001));
-
 app.listen(app.get('port'), function () {
     console.log('Monitoring listening on port ' + app.get('port'));
 });
 
-
-// **********************
-// ACTUAL MONITORING CODE
-// **********************
-
-
-process.env.MODULE_DATA_DIR; // /media/sdcard/data
-process.env.SCRIPTS; // /home/root/scripts
-process.env.REBOOT_COUNT;
-// TODO: add dependencies properly!
-
-
-
-var logFile  = require('fs');
-var logError = require('fs');
-
-var gyroRunLoopInterval   = 500 ; // in milliseconds
-var soapRunLoopInterval   = 100 ; // in milliseconds
-
-var gyroZaxisTransient     = 0x20 ; //0o00100000 ;/
-var gyroZaxisLatchedHigh   = 0x60 ; //01100000 ;
-var gyroZaxisLatchedBoth   = 0x70 ; //01100000 ;
-var gyroInterruptActive    = 0x80 ; // 10000000 ;
-var weAreRotating          = 0x60 ; //0x40 is interrupt triggered
-var touchThresholdAddress  = 0x41 ; // address to set the touch threshold, 
-var touchThreshold         = 255  ; // lowest sensitivity
-
-var tippyTapID             = "XX"; //TODO: we need a way to read the tippy tap id number to add it to fileNames
-var touchDataID            = 0;  //TODO: we need a way to read the latest data id for touchnumber to add it to fileNames
-
-var ErrorLogFileName       = process.env.MODULE_DATA_DIR + "error.log"
-var dataLogFileName        = process.env.MODULE_DATA_DIR + "currentTouchData" ;
-var templateDataLogTouch   = tippyTapID + ",C," ;
-
-var appVersion = 16 ;
-
-
-console.log("Starting monitoring app v" + appVersion  + "\n\r");
-var serialPath = "/dev/ttyMFD2" ;//uart.getDevicePath(); //Default general purpose port "/dev/ttyMFD1" - Intel(R) Edison; "/dev/ttyS0" - Intel(R) Galileo
-var SerialPort = require("serialport").SerialPort;
-var serialPort = new SerialPort(serialPath, {
-    baudrate: 115200
-});
-
 serialPort.on("open",function() {
-    
     serialPort.write("Starting monitoring app v" + appVersion  + "\n\r", function(err, results) { //Write data
     });
 });
 
 
-var mraa = require('mraa');
-
-var uart = new mraa.Uart(0); //Default
-
-
-
-//---------------------------------------------
-// TESTING POWER BOOST
-
-    var powerBoostPin =  new mraa.Gpio(12);
-    powerBoostPin.dir(mraa.DIR_OUT);
-
-
-    powerBoostPin.write(0);
-
-
-var touchSensorDriver = require('jsupm_mpr121');
-var touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-
-
-
-// --- Use wire here since UPM jsupm_mpr121 has a bug on writeRegisters function --------------------- //
-var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);  
-
-var touchSensorI2CWorks = i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);  
-
-if (touchSensorI2CWorks){
-    touchSensor.configAN3944(); 
-    i2c.writeReg(touchThresholdAddress,touchThreshold);
-
-    //Pin setup for touch sensor interrupt
-    var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
-    touchInterruptPin.dir(mraa.DIR_IN);
-    touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-}
-else  {
-    console.error("NO TOUCH SENSOR");
-    logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On "  + new Date().getTime() +'\n', encoding = 'utf8',
-                    function (err) {
-                        console.error("Error log failing , critical error");
-                   });
-}
-
-
-
-
-var IMUClass         = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using default parameters (bus 1, gyro addr 6b, xm addr 1d)
-var gyroAccelCompass = new IMUClass.LSM9DS0()  ;
-
-if ( isEmpty(gyroAccelCompass)){
-    console.error("NO GYROSCOPE");
-}
-else {
-    gyroAccelCompass.init();                          // Initialize the device with default values
-    setupGyroscope();
-    //Pin setup for gyroscope interrupt
-    var gyroInterruptPin =  new mraa.Gpio(GyroscopeInterruptPin);
-    gyroInterruptPin.dir(mraa.DIR_IN);
-    gyroInterruptPin.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
-    
-}
-
-
 var c = 0;
 var c2 = 0;
 var queue = [];
-
 var processLogQueue = function () {
     console.log("queue processing...");
     var topElement = queue.pop();
@@ -211,20 +142,14 @@ var processLogQueue = function () {
     }
     
 };
-
-
 //setTimeout(processLogQueue, 1000);
 
+
 var takingPictures = false;
-var exec = require('child_process').exec;
 
 var takePicture = function () {
-    
-    console.log( "\n\r ...Taking pictures... ");
-    
-    serialPort.write( "\n\r ...Taking pictures... \n\r", function(err, results) {});
-    
-    
+    logger(" ...Taking pictures... ");
+        
     var command = "/home/root/ffmpeg/ffmpeg -an -r 4 -s 1024x768 -f video4linux2 -ss 5 -i /dev/video0 -vframes 200 /media/sdcard/images/node-test-%3d.jpeg";
     
     // for movie
@@ -234,8 +159,7 @@ var takePicture = function () {
     exec(command, function (error, stdout, stderr) {
         
         if (!error) {
-                serialPort.write( "image captured successfully", function(err, results) {});
-                console.log(" images captured successfully");
+                logger("image captured successfully");
             msg = "image captured successfully";
         } else {
             
@@ -247,7 +171,7 @@ var takePicture = function () {
         powerUsbPortOff();
         
         takingPictures = false;
-
+        
         logFile.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
@@ -255,6 +179,7 @@ var takePicture = function () {
                     throw err;
                 }
             });
+        appState = active;
     });
 };
 
@@ -263,22 +188,17 @@ var takePicture = function () {
 
 //---------------------- RUN LOOPS --------------------------
 var powerUsbPortOn = function() {
-powerBoostPin.write(1);
-console.log("soap wire touched, boost power to 5v");  
-serialPort.write( "wire pressed @ " + new Date().getTime(), function(err, results) {});
+    powerBoost.write(1);
+    logger("soap wire touched, boost power to 5v");
 };
         
 var powerUsbPortOff = function() {
-powerBoostPin.write(0);
-console.log("Back to 3.3 v");  
-serialPort.write( "Back to 3.3 v ", function(err, results) {});
-
+    powerBoost.write(0);
+    logger("Back to 3.3 v");
 };
 
 setInterval (function() {
-    console.log(appState  + "\n");
-    serialPort.write(appState  + "\n\r", function(err, results) {});
-    
+        logger(appState );
 }, 2000);
 
 
@@ -293,6 +213,7 @@ setInterval(function () {
          if (!takingPictures) {
              
              takingPictures = true;
+             appState = busy;
            setTimeout(takePicture, 3000 );
              
         }
@@ -319,23 +240,33 @@ setInterval(function () {
 //------- WATER CONTAINER ROTATION
 setInterval(function () {
     
-    if ( thereIsARotation()) {
-        console.log( "Rotation detected");
+    //if ( thereIsARotation()) {
+    // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_WHO_AM_I_XM )); // if chip failed return false all the time
+       // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G )); // if chip failed return false all the time
+    
+        //console.log( "Rotation detected");
         gyroAccelCompass.update();
         
         var x = new IMUClass.new_floatp();
         var y = new IMUClass.new_floatp();
         var z = new IMUClass.new_floatp();
+        logger( "interrupt Origin int GEN2: " + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_SRC));
+        logger( "interrupt Origin int GEN1: " + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_SRC));
+
         gyroAccelCompass.getGyroscope(x, y, z);
         var gyroData = "Gyroscope:     GX: " + Math.round(IMUClass.floatp_value(x)) + " AY: " + Math.round(IMUClass.floatp_value(y)) +" AZ: " + Math.round(IMUClass.floatp_value(z)) ;
-        console.log(gyroData);
+        logger(gyroData);
         
+        gyroAccelCompass.getAccelerometer (x,y,z);
+        logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
+    
+    
         if (!takingPictures) {
            // takingPictures = true;
             //takePicture();
             
         }
-    }
+    //}
 
 }, gyroRunLoopInterval);
 
@@ -345,21 +276,22 @@ setInterval(function () {
 //---------------------- IRQ CALLBACK --------------------------
 
 function irqTouchCallback() {
-    
     // Leave this callback empty, only for waking up the device
-        console.log("irqTouchCallback \n");
-        serialPort.write("Touched !!!!\n\r", function(err, results) {});
-    
-    
+    logger("-Touch detected by ISR");
 }
 
 function gyroInterruptCallBack(){    
     // Leave this callback empty, only for waking up the device
-    //console.log("gyroIRQ callback " + new Date().getTime());
+    logger("Rotation detected by ISR !!!!");
 }
 
+function horizontalPositionCallBack(){
+    logger("Module detected in horizontal position by ISR !!!!");
+}
 
-
+function moduleTransportationCallBack(){
+    logger("Module transportation detected by ISR !!!!");
+}
 //----------------- UTILITY FUNCTIONS --------------------------
 
 function soapHasBeenTouched() {
@@ -367,19 +299,16 @@ function soapHasBeenTouched() {
     
     touchSensor.readButtons();
     var isTouched = touchSensor.m_buttonStates & 1 ;
-    if (isTouched){
-        console.log("soap\n\r");  
-        serialPort.write( "soap " , function(err, results) {});
-    }  
+    if (isTouched) logger("soap");
     return (isTouched);
 }
 
 function setupGyroscope(){
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x60 ); //0x60 is latched interrupt on Z axis
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x42 ); //0x60 is latched interrupt on Y axis
 
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG1_G, 0x8F );     //set Frequency of Gyro sensing (ODR) and axis enabled (x,y,z)
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x7F ); //set minimum rotation duration to trigger interrupt (based on frequency)
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_TSH_ZH_G, 0x25 );   //set threshold for positive rotation speed
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG1_G, 0x0F );     //set Frequency of Gyro sensing (ODR) and axis enabled (x,y,z)
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x40 ); //set minimum rotation duration to trigger interrupt (based on frequency)
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_TSH_ZH_G, 0x40 );   //set threshold for positive rotation speed
 
 gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG2_G, 0x00 ); // normal mode for filtering data
 gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x88 ); // interrupt enabled, active high, DRDY enabled
@@ -387,21 +316,35 @@ gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL
 
 }
 
-function setupAccelerometer(){
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG1_XM,0x64); //set Frequency of accelero sensing (ODR is 25 Hz) and axis enabled (z)
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_DURATION, 0x40 ); // set minimum acceleration duration to trigger interrupt
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_THS, 0x78 ); // set threshold for slightly below 1G value to trigger interrupt (based on 2G scale in accelero)
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG3_XM, 0x20); //enable pinXM for acclero interrupt
-}
 
+function setupAccelerometer(){
+    
+    //Setup interrupt 1 for horizontal position for more than 5 seconds
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_REG,0x30);
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG0_XM,0x00); //default value 
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG1_XM,0x57); //0x64); //set Frequency of accelero sensing (ODR is 100 Hz) and axis enabled (z)
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG2_XM,0x00); // Set accelero scale to 2g
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG3_XM,0x20); //enable pinXM for acclero interrupt
+    
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_DURATION, 0x0 ); // set minimum acceleration duration to trigger interrupt
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_THS, 0x0 ); // set threshold for slightly below 1G value to trigger interrupt (based on 2G scale in accelero)
+    
+    
+    //Setup interrypt 2 for container transport detection
+   /* gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_REG,0x8A); //enable X,Y high acceleration (both needed high for interrupt to happen)
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_THS,0x64); //100 out of 127 possible on 2G , 100 ~ high 1.5G
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_DURATION,0x20); //32 out of 127 possible, 32 = 340 ms
+*/
+                                  
+}
 
 
 function thereIsARotation(){
     if( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G ) === 255) return false; // if chip failed return false all the time
     if (gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_SRC_G ) >= weAreRotating ) return true;
     return false;
+    
 }
-
 function showGyrodebugInfo(){
     console.log( "Gyro REG1: 0x" + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG1_G ).toString(16) );
     console.log( "Gyro REG2: 0x" + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG2_G ).toString(16) );
@@ -430,11 +373,94 @@ function logger(msg) {
 }
 
 // exit on ^C
-process.on('SIGINT', function()
-{
+process.on('SIGINT', function(){
     sensor = null;
     sensorObj.cleanUp();
     sensorObj = null;
     console.log("Exiting.");
     process.exit(0);
 });
+
+
+
+//-----------------------------------------------------------------------------------------------------------
+function setupMonitoring(){
+    
+    var pushButtonLightStyle = 0;
+    
+    //------------------ initialize serial port
+    serialPort = new SerialPort(serialPath, {
+    baudrate: 115200
+    });
+    
+    logger(appState);
+    
+    //------------------ initialize server for hardware status report
+    app = express();
+    app.set('port', (process.env.MONITORING_PORT || 3001));
+
+   
+    
+    //------------------ initialize power booster to OFF
+    powerBoost =  new mraa.Gpio(voltageBoostPin );
+    powerBoost.dir(mraa.DIR_OUT);
+    powerBoost.write(0);
+
+    touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
+    i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);     
+    touchSensorI2CWorks = i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);  
+
+    //if (touchSensorI2CWorks){
+        
+        touchSensor.configAN3944(); 
+        i2c.writeReg(touchThresholdAddress,touchThreshold);
+
+        //Pin setup for touch sensor interrupt
+        var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
+        touchInterruptPin.dir(mraa.DIR_IN);
+        touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
+    /*}
+    else  {
+        console.error("NO TOUCH SENSOR");
+        logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On "  + new Date().getTime() +'\n', encoding = 'utf8',
+                        function (err) {
+                            console.error("Error log failing , critical error");
+                       });
+    }*/
+
+
+    gyroAccelCompass = new IMUClass.LSM9DS0()  ;
+    gyroAccelCompass.init();                          // Initialize the device with default values
+
+    /*if ( isEmpty(gyroAccelCompass)){
+        console.error("NO GYROSCOPE");
+    }
+    else {*/
+        //setupGyroscope();
+        setupAccelerometer();
+        
+        var gyrocsopeInterrupt =  new mraa.Gpio(GyroscopeInterruptPin);
+        gyrocsopeInterrupt.dir(mraa.DIR_IN);
+        gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
+        
+        var horizontalPositionInterrupt =   new mraa.Gpio(horizontalPositionInterruptPin);
+        horizontalPositionInterrupt.dir(mraa.DIR_IN);
+        horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
+        
+        var moduleTransportationInterrupt = new mraa.Gpio(moduleIsBeingTransportedInterruptPin);
+        horizontalPositionInterrupt.dir(mraa.DIR_IN);
+        horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
+    //}
+
+    
+    var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
+    pushButtonLight.dir(mraa.DIR_OUT);
+    pushButtonLight.write(1);
+    
+    setTimeout(function(){
+        pushButtonLight.write(0);
+    },5000);
+    
+    logger("Starting monitoring app v" + appVersion  + "\n\r");   
+    appState = "active";
+}

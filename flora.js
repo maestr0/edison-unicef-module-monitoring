@@ -36,12 +36,12 @@ setInterval(function()
                 " AY: " + sensorObj.floatp_value(y) +
                 " AZ: " + sensorObj.floatp_value(z));
 
-    sensor.getMagnetometer(x, y, z);
+    /*sensor.getMagnetometer(x, y, z);
     console.log("Magnetometer:  MX: " + sensorObj.floatp_value(x) +
                 " MY: " + sensorObj.floatp_value(y) +
                 " MZ: " + sensorObj.floatp_value(z));
 
-    console.log("Temperature:   " + sensor.getTemperature());
+    console.log("Temperature:   " + sensor.getTemperature());*/
 
     console.log();
 
