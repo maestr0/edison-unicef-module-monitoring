@@ -18,10 +18,10 @@ var horizontalPositionInterruptPin = 11 ;
 var GyroscopeInterruptPin = 12 ;
 var pushButtonLightPin    = 13 ;
 
-process.env.MODULE_DATA_DIR; // /media/sdcard/data
+process.env.MODULE_DATA_DIR = "/media/sdcard/data";
 process.env.SCRIPTS; // /home/root/scripts
-process.env.REBOOT_COUNT;
-
+process.env.REBOOT_COUNT = 23;
+process.env.TT_ID = "X" ;
 
 var gyroRunLoopInterval   = 1000 ; // in milliseconds
 var soapRunLoopInterval   = 100 ; // in milliseconds
@@ -38,8 +38,8 @@ var tippyTapID             = "XX"; //TODO: we need a way to read the tippy tap i
 var touchDataID            = 0;  //TODO: we need a way to read the latest data id for touchnumber to add it to fileNames
 
 var ErrorLogFileName       = process.env.MODULE_DATA_DIR + "error.log"
-var dataLogFileName        = process.env.MODULE_DATA_DIR + "currentTouchData" ;
-var templateDataLogTouch   = tippyTapID + ",C," ;
+var dataLogFileName        = process.env.MODULE_DATA_DIR + "/currentTouchData" ;
+var templateDataLogTouch   = process.env.TT_ID + ",C," ;
 
 var serialPath = "/dev/ttyMFD2" ;
 var i2c; 
@@ -218,7 +218,7 @@ setInterval(function () {
              
         }
         
-          logFile.appendFile(dataLogFileName, templateDataLogTouch + touchDataID + ',' + Date.now()  + '\n', encoding = 'utf8',
+          logFile.appendFile(dataLogFileName, templateDataLogTouch + process.env.REBOOT_COUNT + ',' + (touchDataID++) + ',' + Date.now()  + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
                     console.error("Touch failed to record on sdcard");
