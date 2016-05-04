@@ -23,7 +23,7 @@ process.env.SCRIPTS; // /home/root/scripts
 process.env.REBOOT_COUNT;
 
 
-var gyroRunLoopInterval   = 500 ; // in milliseconds
+var gyroRunLoopInterval   = 1000 ; // in milliseconds
 var soapRunLoopInterval   = 100 ; // in milliseconds
 
 var gyroZaxisTransient     = 0x20 ; //0o00100000 ;/
@@ -43,10 +43,10 @@ var templateDataLogTouch   = tippyTapID + ",C," ;
 
 var serialPath = "/dev/ttyMFD2" ;
 var i2c; 
-var touchSensorI2CWorks ;
 var serialPort;
 var powerBoost;
 var touchSensor;
+var soapSensorIsDamaged = false;
 var gyroAccelCompass = new IMUClass.LSM9DS0()  ;
 var app;
 
@@ -87,7 +87,7 @@ app.get('/status', function (req, res) {
         
     
     // CAPACITIVE SENSOR STATUS SYSTEM ------------
-    if (!touchSensorI2CWorks) {
+    if (!touchSensorWorks()) {
         capacitiveStatus     = "Touch sensor damaged";
         sensorsOverallStatus = "FAIL";
     }
@@ -179,7 +179,7 @@ var takePicture = function () {
                     throw err;
                 }
             });
-        appState = active;
+        appState = "active";
     });
 };
 
@@ -198,7 +198,7 @@ var powerUsbPortOff = function() {
 };
 
 setInterval (function() {
-        logger(appState );
+        //TODO: uncomment this logger(appState );
 }, 2000);
 
 
@@ -213,7 +213,7 @@ setInterval(function () {
          if (!takingPictures) {
              
              takingPictures = true;
-             appState = busy;
+             appState = "busy";
            setTimeout(takePicture, 3000 );
              
         }
@@ -250,15 +250,19 @@ setInterval(function () {
         var x = new IMUClass.new_floatp();
         var y = new IMUClass.new_floatp();
         var z = new IMUClass.new_floatp();
-        logger( "Origin int GEN2: " + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_SRC));
-        logger( "Origin int GEN1: " + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_SRC));
-
+        logger( "Origin int GEN2: 0x" + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_SRC).toString(16)  +". " +
+                "Origin int GEN1: 0x" + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_SRC).toString(16) );// + ". "+
+                //"Origin INTG: 0x"+ gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_SRC_G).toString(16) );
+    
         gyroAccelCompass.getGyroscope(x, y, z);
         var gyroData = "Gyroscope:     GX: " + Math.round(IMUClass.floatp_value(x)) + " AY: " + Math.round(IMUClass.floatp_value(y)) +" AZ: " + Math.round(IMUClass.floatp_value(z)) ;
-        logger(gyroData);
+       
+    logger(gyroData);
         
+    
+    
         gyroAccelCompass.getAccelerometer (x,y,z);
-        logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
+        //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
     
     
         if (!takingPictures) {
@@ -295,8 +299,7 @@ function moduleTransportationCallBack(){
 //----------------- UTILITY FUNCTIONS --------------------------
 
 function soapHasBeenTouched() {
-    if(i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR) === 0) return false; // if chip failed
-    
+    if (soapSensorIsDamaged) return false;
     touchSensor.readButtons();
     var isTouched = touchSensor.m_buttonStates & 1 ;
     if (isTouched) logger("soap");
@@ -304,17 +307,28 @@ function soapHasBeenTouched() {
 }
 
 function setupGyroscope(){
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x42 ); //0x60 is latched interrupt on Y axis
+    
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G, 0x08); // enable interrupt only on Y axis
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG1_G, 0x0A);// Y axis enabled only
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG2_G, 0x00);
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x80);
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00);  
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, 0x25 ); // 0x25 ); //set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
+    
+    showGyrodebugInfo();
+    
+/*gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x48 ); //0x60 is latched interrupt on Y axis
 
 gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG1_G, 0x0F );     //set Frequency of Gyro sensing (ODR) and axis enabled (x,y,z)
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x40 ); //set minimum rotation duration to trigger interrupt (based on frequency)
-gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_TSH_ZH_G, 0x40 );   //set threshold for positive rotation speed
+//gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x40 ); //set minimum rotation duration to trigger interrupt (based on frequency)
+gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_TSH_ZH_G, 0x01 );   //set threshold for positive rotation speed
 
 gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG2_G, 0x00 ); // normal mode for filtering data
 gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x88 ); // interrupt enabled, active high, DRDY enabled
 //gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00 ); // all default values
-
+*/
 }
+
 
 
 function setupAccelerometer(){
@@ -348,6 +362,8 @@ function thereIsARotation(){
     
 }
 function showGyrodebugInfo(){
+    
+    console.log( "Gyro CFG : 0x" + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_CFG_G ).toString(16) );
     console.log( "Gyro REG1: 0x" + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG1_G ).toString(16) );
     console.log( "Gyro REG2: 0x" + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG2_G ).toString(16) );
     console.log( "Gyro REG3: 0x" + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL_REG3_G ).toString(16) );
@@ -409,35 +425,39 @@ function setupMonitoring(){
     powerBoost.write(0);
 
     touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-    i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);     
-    touchSensorI2CWorks = i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);  
-
-    //if (touchSensorI2CWorks){
-        
+    
+    if (touchSensorWorks()){
+        logger("TOUCH SENSOR OK");
         touchSensor.configAN3944(); 
+        var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);    
+        i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);  
         i2c.writeReg(touchThresholdAddress,touchThreshold);
 
         //Pin setup for touch sensor interrupt
         var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
         touchInterruptPin.dir(mraa.DIR_IN);
-    /*}
+        setTimeout(     function(){
+            touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
+        },500);
+        
+    }
     else  {
         console.error("NO TOUCH SENSOR");
         logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On "  + new Date().getTime() +'\n', encoding = 'utf8',
                         function (err) {
                             console.error("Error log failing , critical error");
                        });
-    }*/
+    }
 
 
     gyroAccelCompass = new IMUClass.LSM9DS0()  ;
-    gyroAccelCompass.init();                          // Initialize the device with default values
-
-    /*if ( isEmpty(gyroAccelCompass)){
+    
+    if( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G ) === 255){
         console.error("NO GYROSCOPE");
     }
-    else {*/
-        //setupGyroscope();
+    else {
+        gyroAccelCompass.init();                          // Initialize the device with default values
+        setupGyroscope();
         setupAccelerometer();
         
         var gyrocsopeInterrupt =  new mraa.Gpio(GyroscopeInterruptPin);
@@ -451,10 +471,8 @@ function setupMonitoring(){
             gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
             horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
             horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
-            touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-
         },500);
-    //}
+    }
 
     
     var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
@@ -467,4 +485,19 @@ function setupMonitoring(){
     
     logger("Starting monitoring app v" + appVersion  + "\n\r");   
     appState = "active";
+}
+
+
+function touchSensorWorks(){
+    touchI2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);    
+    touchI2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);  
+    var touchSensorI2CWorks    = 0 ;
+    try {
+        touchSensorI2CWorks = touchI2c.readReg(0x5D);
+    }
+    catch(err){
+        touchSensorI2CWorks = 0;
+        soapSensorIsDamaged = true;
+    }  
+    return touchSensorI2CWorks;
 }
