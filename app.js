@@ -250,8 +250,8 @@ setInterval(function () {
         var x = new IMUClass.new_floatp();
         var y = new IMUClass.new_floatp();
         var z = new IMUClass.new_floatp();
-        logger( "interrupt Origin int GEN2: " + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_SRC));
-        logger( "interrupt Origin int GEN1: " + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_SRC));
+        logger( "Origin int GEN2: " + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_SRC));
+        logger( "Origin int GEN1: " + gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_SRC));
 
         gyroAccelCompass.getGyroscope(x, y, z);
         var gyroData = "Gyroscope:     GX: " + Math.round(IMUClass.floatp_value(x)) + " AY: " + Math.round(IMUClass.floatp_value(y)) +" AZ: " + Math.round(IMUClass.floatp_value(z)) ;
@@ -290,7 +290,7 @@ function horizontalPositionCallBack(){
 }
 
 function moduleTransportationCallBack(){
-    logger("Module transportation detected by ISR !!!!");
+    logger("Module transportation detected by ISR !!!!" + new Date().getTime());
 }
 //----------------- UTILITY FUNCTIONS --------------------------
 
@@ -320,21 +320,23 @@ gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_CTRL
 function setupAccelerometer(){
     
     //Setup interrupt 1 for horizontal position for more than 5 seconds
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_REG,0x30);
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_REG,0x20);
     gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG0_XM,0x00); //default value 
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG1_XM,0x57); //0x64); //set Frequency of accelero sensing (ODR is 100 Hz) and axis enabled (z)
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG1_XM,0x67); //0x64); //set Frequency of accelero sensing (ODR is 100 Hz) and axis enabled (z)
+    
     gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG2_XM,0x00); // Set accelero scale to 2g
     gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG3_XM,0x20); //enable pinXM for acclero interrupt
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_CTRL_REG5_XM, 0x03); 
     
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_DURATION, 0x0 ); // set minimum acceleration duration to trigger interrupt
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_THS, 0x0 ); // set threshold for slightly below 1G value to trigger interrupt (based on 2G scale in accelero)
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_DURATION, 0x2F ); // set minimum acceleration duration to trigger interrupt
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_1_THS, 0x3E ); // set threshold for slightly below 1G value to trigger interrupt (based on 2G scale in accelero)
     
     
-    //Setup interrypt 2 for container transport detection
-   /* gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_REG,0x8A); //enable X,Y high acceleration (both needed high for interrupt to happen)
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_THS,0x64); //100 out of 127 possible on 2G , 100 ~ high 1.5G
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_DURATION,0x20); //32 out of 127 possible, 32 = 340 ms
-*/
+    //------ Setup interrypt 2 for container transport detection
+   //gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_REG,0x8A); //enable X,Y high acceleration (both needed high for interrupt to happen)
+    //gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_THS,0x64); //100 out of 127 possible on 2G , 100 ~ high 1.5G
+    //gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_DURATION,0x20); //32 out of 127 possible, 32 = 340 ms
+
                                   
 }
 
@@ -418,7 +420,6 @@ function setupMonitoring(){
         //Pin setup for touch sensor interrupt
         var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
         touchInterruptPin.dir(mraa.DIR_IN);
-        touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
     /*}
     else  {
         console.error("NO TOUCH SENSOR");
@@ -441,15 +442,18 @@ function setupMonitoring(){
         
         var gyrocsopeInterrupt =  new mraa.Gpio(GyroscopeInterruptPin);
         gyrocsopeInterrupt.dir(mraa.DIR_IN);
-        gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
-        
         var horizontalPositionInterrupt =   new mraa.Gpio(horizontalPositionInterruptPin);
         horizontalPositionInterrupt.dir(mraa.DIR_IN);
-        horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
-        
         var moduleTransportationInterrupt = new mraa.Gpio(moduleIsBeingTransportedInterruptPin);
         horizontalPositionInterrupt.dir(mraa.DIR_IN);
-        horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
+    
+        setTimeout(function(){
+            gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
+            horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
+            horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
+            touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
+
+        },500);
     //}
 
     
