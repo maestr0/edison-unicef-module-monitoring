@@ -49,7 +49,7 @@ var powerBoost;
 var touchSensor;
 var soapSensorIsDamaged = false;
 var IMUSensorIsDamaged  = false;
-var gyroAccelCompass = new IMUClass.LSM9DS0()  ;
+var gyroAccelCompass ; //= new IMUClass.LSM9DS0()  ;
 var app;
 
 
@@ -72,7 +72,7 @@ app.get('/status', function (req, res) {
     var capacitiveStatus     = "OK" ;
     
     // IMU SENSOR STATUS SYSTEM ------------
-    if (isEmpty(gyroAccelCompass)) {
+    if( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G ) === 255){
         IMUStatus = "IMU damaged. ";
         sensorsOverallStatus = "FAIL";
     }
@@ -92,10 +92,6 @@ app.get('/status', function (req, res) {
     if (!touchSensorWorks()) {
         capacitiveStatus     = "Touch sensor damaged";
         sensorsOverallStatus = "FAIL";
-    }
-    else if ( i2c.readReg(0x5D) != 0x24){
-        capacitiveStatus     = "Touch sensor unreachable";
-        sensorsOverallStatus = "ERROR";    
     }
     
     appState="active";
