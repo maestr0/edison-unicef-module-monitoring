@@ -498,11 +498,14 @@ function initRebootCount() {
     var self = this;
     fs.readFile(process.env.REBOOT_COUNT_PATH, "UTF8", function (err, data) {
         if (err) {
+            console.log("error reboot count");
             self.rebootCount = "REBOOT_COUNT_UNDEFINED_";
         }
         try {
             self.rebootCount = parseInt(data) + "";
+            console.log("reboot count ok " + self.rebootCount);
         } catch (e) {
+            console.log("invalid reboot count");
             self.rebootCount = "REBOOT_COUNT_INVALID_";
         }
     });
