@@ -1,4 +1,5 @@
 var appVersion = 16;
+var self = this;
 
 var mraa = require('mraa');
 var express = require('express');
@@ -23,9 +24,10 @@ process.env.MODULE_DATA_DIR = "/media/sdcard/data";
 process.env.SCRIPTS = "/home/root/scripts";
 process.env.REBOOT_COUNT_PATH = "/home/root/REBOOT_COUNT";
 process.env.TT_ID = "X";
-var rebootCount = "0_REBOOT_COUNT_";
+rebootCount = "NOTHIN";
 initRebootCount();
 
+var moduleIsHorizontal = false;
 var dataFileNamePrefix = generateID();
 var gyroRunLoopInterval = 1000; // in milliseconds
 var soapRunLoopInterval = 100; // in milliseconds
@@ -66,42 +68,51 @@ app.get('/status', function (req, res) {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET');
     res.header('Access-Control-Allow-Headers', 'Content-Type');
-    //FIXME: implement status
-
+    
+    
     var sensorsOverallStatus = "OK";
-    var IMUStatus = "OK";
-    var capacitiveStatus = "OK";
-
-    // IMU SENSOR STATUS SYSTEM ------------
-    if (isEmpty(gyroAccelCompass)) {
-        IMUStatus = "IMU damaged. ";
-        sensorsOverallStatus = "FAIL";
+    var errorStatus = "";
+    
+    switch (req.query.device) {
+        case "motion" : 
+                        // CAPACITIVE SENSOR STATUS SYSTEM ------------
+                        if (!touchSensorWorks()) {
+                            errorStatus = "Touch sensor damaged";
+                            sensorsOverallStatus = "FAIL";
+                        }
+            
+                        break;
+            
+        case "touch" :  // IMU SENSOR STATUS SYSTEM ------------
+                        if (isEmpty(gyroAccelCompass)) {
+                            errorStatus = "IMU damaged. ";
+                            sensorsOverallStatus = "FAIL";
+                        }
+                        else {
+                            if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
+                                errorStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
+                                sensorsOverallStatus = "ERROR";
+                            }
+                            if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_WHO_AM_I_XM) === 255) {
+                                errorStatus += "Accelerometer unreachable. "; // if chip failed return false all the time
+                                sensorsOverallStatus = "ERROR";
+                            }
+                        }
+            
+                        break;
     }
-    else {
-        if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
-            IMUStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
-            sensorsOverallStatus = "ERROR";
-        }
-        if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_WHO_AM_I_XM) === 255) {
-            IMUStatus += "Accelerometer unreachable. "; // if chip failed return false all the time
-            sensorsOverallStatus = "ERROR";
-        }
-    }
+    
 
 
-    // CAPACITIVE SENSOR STATUS SYSTEM ------------
-    if (!touchSensorWorks()) {
-        capacitiveStatus = "Touch sensor damaged";
-        sensorsOverallStatus = "FAIL";
-    }
+    
+
 
     appState = "active";
 
     var device = req.query.device;
     res.send({
         "status": sensorsOverallStatus,
-        "IMU": IMUStatus,
-        "capacitive": capacitiveStatus
+        "error": errorStatus
     });
 });
 app.listen(app.get('port'), function () {
@@ -164,16 +175,42 @@ var takePicture = function () {
         }
 
         powerUsbPortOff();
+        var oldDataFileNamePrefix = dataFileNamePrefix ;
         dataFileNamePrefix = generateID();
+        
+        logger("about to archive...");
+        
+        exec( process.env.SCRIPTS + "/archive.sh " + oldDataFileNamePrefix, function (error, stdout, stderr) {
+            if (!error) {
+                logger("PAWEL IS PERFECT !!!!  ------------------------ archive completed" + stdout);
+                
+                exec( process.env.SCRIPTS + "/sleep.sh " , function (error, stdout, stderr) {
+                    if(error){
+                        logger("---- WE CANNOT SLEEP -----");
+                    }
+                });
+                
+            }
+            else {
+                     
+                console.error("shit happened with the archiver " + stderr);
+                msg = "ERROR: shit happened " + stderr;
+            }
+            
+        
+            
+        });
+        
         takingPictures = false;
 
-        logFile.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
+        /*logFile.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
                     console.error("shit happened with the file writter");
                     throw err;
                 }
-            });
+            });        
+            */
         appState = "active";
     });
 };
@@ -228,7 +265,46 @@ setInterval(function () {
 }, soapRunLoopInterval);
 
 
+function startAccessPoint(){
+    appState = "busy";
+    exec(process.env.SCRIPTS + "/startAp.sh " , function (error, stdout, stderr) {
+
+        if (error) {
+                        logger("about to reboot " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
+        } else {
+                        logger("in AP mode " + stdout);
+        }
+    });
+    
+}
+
+function accesspointTimeoutReboot(){
+    setTimeout(function(){
+        logger("ap timed out");
+        //FIXME: implement reboot here oui
+    },1*60*1000); //1 minutes
+}
+
+
 //------- WATER CONTAINER ROTATION
+setInterval(function(){
+    if (appState != "busy"){
+        if (moduleIsHorizontal){
+            durationInHorizontalPosition++;
+            if (durationInHorizontalPosition > 5) {
+                startAccessPoint();
+                accesspointTimeoutReboot();
+            }
+            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
+            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+            moduleIsHorizontal = false;
+        }
+        else {
+            durationInHorizontalPosition = 0;
+        }
+    }
+},1000);
+
 setInterval(function () {
 
     //if ( thereIsARotation()) {
@@ -241,8 +317,10 @@ setInterval(function () {
     var x = new IMUClass.new_floatp();
     var y = new IMUClass.new_floatp();
     var z = new IMUClass.new_floatp();
-    logger("Origin int GEN2: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC).toString(16) + ". " +
-        "Origin int GEN1: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC).toString(16));// + ". "+
+    gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
+    gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+    //logger("Origin int GEN2: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC).toString(16) + ". " +
+      //  "Origin int GEN1: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC).toString(16));// + ". "+
     //"Origin INTG: 0x"+ gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_SRC_G).toString(16) );
 
     gyroAccelCompass.getGyroscope(x, y, z);
@@ -283,6 +361,9 @@ function horizontalPositionCallBack() {
 
 function moduleTransportationCallBack() {
     logger("Module transportation detected by ISR !!!!" + new Date().getTime());
+    
+    moduleIsHorizontal = true;
+    
 }
 //----------------- UTILITY FUNCTIONS --------------------------
 
@@ -495,15 +576,21 @@ function generateID() {
 }
 
 function initRebootCount() {
-    var self = this;
+    
     fs.readFile(process.env.REBOOT_COUNT_PATH, "UTF8", function (err, data) {
+        logger(self.rebootCount + " vasa" + rebootCount );
+         self.rebootCount = 1 ;
         if (err) {
             console.log("error reboot count");
             self.rebootCount = "REBOOT_COUNT_UNDEFINED_";
         }
+        
         try {
             self.rebootCount = parseInt(data) + "";
+            rebootCount = self.rebootCount ;
             console.log("reboot count ok " + self.rebootCount);
+            console.log( "reboot itself : " +rebootCount);
+            
         } catch (e) {
             console.log("invalid reboot count");
             self.rebootCount = "REBOOT_COUNT_INVALID_";
