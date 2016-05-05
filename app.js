@@ -20,10 +20,11 @@ var horizontalPositionInterruptPin = 11;
 var GyroscopeInterruptPin = 12;
 var pushButtonLightPin = 13;
 
+process.env.SERIAL_NUMBER ; 
 process.env.MODULE_DATA_DIR = "/media/sdcard/data";
 process.env.SCRIPTS = "/home/root/scripts";
 process.env.REBOOT_COUNT_PATH = "/home/root/REBOOT_COUNT";
-process.env.TT_ID = "X";
+process.env.SERIAL_NUMBER  = "X";
 rebootCount = "NOTHIN";
 initRebootCount();
 
@@ -44,7 +45,7 @@ var tippyTapID = "XX"; //TODO: we need a way to read the tippy tap id number to 
 var touchDataID = 0;  //TODO: we need a way to read the latest data id for touchnumber to add it to fileNames
 
 var ErrorLogFileName = process.env.MODULE_DATA_DIR + "error.log"
-var templateDataLogTouch = process.env.TT_ID + ",C,";
+var templateDataLogTouch = process.env.SERIAL_NUMBER  + ",C,";
 
 var serialPath = "/dev/ttyMFD2";
 var i2c;
