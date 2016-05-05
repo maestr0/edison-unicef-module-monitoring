@@ -4,6 +4,7 @@ var mraa = require('mraa');
 var express = require('express');
 var logFile = require('fs');
 var logError = require('fs');
+var fs = require('fs');
 var SerialPort = require("serialport").SerialPort;
 var touchSensorDriver = require('jsupm_mpr121');
 var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using default parameters (bus 1, gyro addr 6b, xm addr 1d)
@@ -22,7 +23,8 @@ process.env.MODULE_DATA_DIR = "/media/sdcard/data";
 process.env.SCRIPTS = "/home/root/scripts";
 process.env.REBOOT_COUNT_PATH = "/home/root/REBOOT_COUNT";
 process.env.TT_ID = "X";
-var rebootCount = 23;
+var rebootCount = "0_REBOOT_COUNT_";
+initRebootCount();
 
 var dataFileNamePrefix = generateID();
 var gyroRunLoopInterval = 1000; // in milliseconds
@@ -487,11 +489,38 @@ function touchSensorWorks() {
 }
 
 function generateID() {
-
-    return rebootCount + '_' + currentDate() + '_' + "RANDOM_SHIT";
+    var randomString = Math.random().toString(36).substring(10);
+    return rebootCount + '_' + currentDate() + '_' + randomString;
 
 }
 
+function initRebootCount() {
+    fs.readFile("example.txt", "UTF8", function (err, data) {
+        if (err) {
+            rebootCount = "REBOOT_COUNT_UNDEFINED_";
+        }
+        try {
+            rebootCount = parseInt(data) + "";
+        } catch (e) {
+            rebootCount = "REBOOT_COUNT_INVALID_";
+        }
+    });
+}
+
 function currentDate() {
-    return "2016_05_04-22_51_43";
+    var d = new Date(),
+        month = '' + (d.getMonth() + 1),
+        day = '' + d.getDate(),
+        year = d.getFullYear(),
+        hour = '' + d.getHours(),
+        min = '' + d.getMinutes(),
+        sec = '' + d.getSeconds();
+
+    if (month.length < 2) month = '0' + month;
+    if (day.length < 2) day = '0' + day;
+
+    if (hour.length < 2) hour = '0' + hour;
+    if (min.length < 2) min = '0' + min;
+    if (sec.length < 2) sec = '0' + sec;
+    return [year, month, day].join('_') + '-' + [hour, min, sec].join('_');
 }
