@@ -229,7 +229,7 @@ var powerUsbPortOff = function () {
 };
 
 setInterval(function () {
-    //TODO: uncomment this logger(appState );
+    logger("state: " + appState );
 }, 2000);
 
 
@@ -267,13 +267,14 @@ setInterval(function () {
 
 
 function startAccessPoint(){
-    appState = "busy";
     exec(process.env.SCRIPTS + "/startAp.sh " , function (error, stdout, stderr) {
 
         if (error) {
+                        appState = "active";
                         logger("about to reboot " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
         } else {
                         logger("in AP mode " + stdout);
+                        appState = "disabled";
         }
     });
     
@@ -282,6 +283,22 @@ function startAccessPoint(){
 function accesspointTimeoutReboot(){
     setTimeout(function(){
         logger("ap timed out");
+        
+        exec(process.env.SCRIPTS + "/stopAp.sh " , function (error, stdout, stderr) {
+
+        if (error) {
+                        moduleIsHorizontal = false;
+                        appState = "active";
+                        logger("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
+        } else {
+                        logger("... AP mode stopped " + stdout);
+                        moduleIsHorizontal = false;
+                        appState = "active";
+        }
+    });
+        
+        
+
         //FIXME: implement reboot here oui
     },1*60*1000); //1 minutes
 }
@@ -289,7 +306,7 @@ function accesspointTimeoutReboot(){
 
 //------- WATER CONTAINER ROTATION
 setInterval(function(){
-    if (appState != "busy"){
+    if (appState != "disabled"){
         if (moduleIsHorizontal){
             durationInHorizontalPosition++;
             if (durationInHorizontalPosition === 5) {
@@ -327,7 +344,7 @@ setInterval(function () {
     gyroAccelCompass.getGyroscope(x, y, z);
     var gyroData = "Gyroscope:     GX: " + Math.round(IMUClass.floatp_value(x)) + " AY: " + Math.round(IMUClass.floatp_value(y)) + " AZ: " + Math.round(IMUClass.floatp_value(z));
 
-    logger(gyroData);
+    //logger(gyroData);
 
 
     gyroAccelCompass.getAccelerometer(x, y, z);
@@ -575,6 +592,7 @@ function generateID() {
     return rebootCount + '_' + currentDate() + '_' + randomString;
 
 }
+
 
 function initRebootCount() {
     
