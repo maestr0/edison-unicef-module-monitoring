@@ -292,7 +292,7 @@ setInterval(function(){
     if (appState != "busy"){
         if (moduleIsHorizontal){
             durationInHorizontalPosition++;
-            if (durationInHorizontalPosition > 5) {
+            if (durationInHorizontalPosition === 5) {
                 startAccessPoint();
                 accesspointTimeoutReboot();
             }
@@ -361,7 +361,7 @@ function horizontalPositionCallBack() {
 }
 
 function moduleTransportationCallBack() {
-    logger("Module transportation detected by ISR !!!!" + new Date().getTime());
+    if (moduleIsHorizontal === false) logger("Module transportation detected by ISR !!!!" + new Date().getTime());
     
     moduleIsHorizontal = true;
     
