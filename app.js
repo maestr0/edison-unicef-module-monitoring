@@ -495,14 +495,15 @@ function generateID() {
 }
 
 function initRebootCount() {
+    var self = this;
     fs.readFile(process.env.REBOOT_COUNT_PATH, "UTF8", function (err, data) {
         if (err) {
-            rebootCount = "REBOOT_COUNT_UNDEFINED_";
+            self.rebootCount = "REBOOT_COUNT_UNDEFINED_";
         }
         try {
-            rebootCount = parseInt(data) + "";
+            self.rebootCount = parseInt(data) + "";
         } catch (e) {
-            rebootCount = "REBOOT_COUNT_INVALID_";
+            self.rebootCount = "REBOOT_COUNT_INVALID_";
         }
     });
 }
