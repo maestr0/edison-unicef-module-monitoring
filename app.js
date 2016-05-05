@@ -495,7 +495,7 @@ function generateID() {
 }
 
 function initRebootCount() {
-    fs.readFile("example.txt", "UTF8", function (err, data) {
+    fs.readFile(process.env.REBOOT_COUNT_PATH, "UTF8", function (err, data) {
         if (err) {
             rebootCount = "REBOOT_COUNT_UNDEFINED_";
         }
