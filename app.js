@@ -155,7 +155,7 @@ var takePicture = function () {
 
     var command = scriptsPath + "/capture.sh " + dataFileNamePrefix;
 
-    exec(command, function (error, stdout, stderr) {
+    exec(command, {timeout: 60}, function (error, stdout, stderr) {
 
         if (!error) {
             logger("image captured successfully");
@@ -173,11 +173,11 @@ var takePicture = function () {
 
         logger("about to archive...");
 
-        exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, function (error, stdout, stderr) {
+        exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60}, function (error, stdout, stderr) {
             if (!error) {
                 logger("PAWEL IS PERFECT !!!!  ------------------------ archive completed" + stdout);
 
-                exec(scriptsPath + "/sleep.sh ", function (error, stdout, stderr) {
+                exec(scriptsPath + "/sleep.sh ", {timeout: 60}, function (error, stdout, stderr) {
                     if (error) {
                         logger("---- WE CANNOT SLEEP -----");
                     }
@@ -259,7 +259,7 @@ setInterval(function () {
 
 function startAccessPoint() {
     appState = "busy";
-    exec(scriptsPath + "/startAp.sh ", function (error, stdout, stderr) {
+    exec(scriptsPath + "/startAp.sh ", {timeout: 60}, function (error, stdout, stderr) {
 
         if (error) {
             logger("about to reboot " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
