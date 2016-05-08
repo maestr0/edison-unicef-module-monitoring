@@ -24,7 +24,9 @@ scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
 serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 
-appMode = process.env.NODE_ENV || "development";
+// FIXME
+// appMode = process.env.NODE_ENV || "development";
+appMode = "development";
 
 console.log("APP MODE " + appMode);
 
