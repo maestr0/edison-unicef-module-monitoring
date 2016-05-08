@@ -238,7 +238,7 @@ setInterval(function () {
 setInterval(function () {
 
     rebootIfNeeded();
-    if (soapHasBeenTouched()) {
+    if (soapHasBeenTouched() && appState != "disabled") {
 
         powerUsbPortOn();
 
@@ -378,8 +378,9 @@ function horizontalPositionCallBack() {
 }
 
 function moduleTransportationCallBack() {
-    //if (moduleIsHorizontal === false)
-    logger("Module transportation detected by ISR !!!!" + new Date().getTime());
+    if (moduleIsHorizontal === false) {
+        logger("Module transportation detected by ISR !!!!" + new Date().getTime());
+    }
 
     moduleIsHorizontal = true;
 
