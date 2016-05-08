@@ -285,7 +285,7 @@ function accesspointTimeoutReboot() {
     setTimeout(function () {
         logger("ap timed out");
 
-        exec(process.env.SCRIPTS + "/stopAp.sh ", function (error, stdout, stderr) {
+        exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
 
             if (error) {
                 moduleIsHorizontal = false;
