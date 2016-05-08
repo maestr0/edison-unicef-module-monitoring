@@ -300,7 +300,7 @@ function accesspointTimeoutReboot() {
 
 
         //FIXME: implement reboot here oui
-    }, 1 * 60 * 1000); //1 minutes
+    }, 5 * 60 * 1000); //1 minutes
 }
 
 
