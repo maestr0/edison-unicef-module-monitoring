@@ -155,7 +155,7 @@ var takePicture = function () {
 
     var command = scriptsPath + "/capture.sh " + dataFileNamePrefix;
 
-    exec(command, {timeout: 60}, function (error, stdout, stderr) {
+    exec(command, {timeout: 60000}, function (error, stdout, stderr) {
 
         if (!error) {
             logger("image captured successfully");
@@ -173,11 +173,11 @@ var takePicture = function () {
 
         logger("about to archive...");
 
-        exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60}, function (error, stdout, stderr) {
+        exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60000}, function (error, stdout, stderr) {
             if (!error) {
                 logger("PAWEL IS PERFECT !!!!  ------------------------ archive completed" + stdout);
 
-                exec(scriptsPath + "/sleep.sh ", {timeout: 60}, function (error, stdout, stderr) {
+                exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error, stdout, stderr) {
                     if (error) {
                         logger("---- WE CANNOT SLEEP -----");
                     }
@@ -210,6 +210,7 @@ var takePicture = function () {
 
 //---------------------- RUN LOOPS --------------------------
 var powerUsbPortOn = function () {
+    logger("about to set 1 on POWER BOOST pin");
     powerBoost.write(1);
     logger("soap wire touched, boost power to 5v");
 };
@@ -221,7 +222,7 @@ var powerUsbPortOff = function () {
 
 setInterval(function () {
     logger("state: " + appState);
-}, 2000);
+}, 5000);
 
 
 //------- SOAP TOUCHING
@@ -258,7 +259,7 @@ setInterval(function () {
 
 
 function startAccessPoint() {
-    exec(scriptsPath + "/startAp.sh ", {timeout: 60}, function (error, stdout, stderr) {
+    exec(scriptsPath + "/startAp.sh ", {timeout: 60000}, function (error, stdout, stderr) {
 
         if (error) {
             appState = "active";
