@@ -25,7 +25,7 @@ scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
 serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 
-// FIXME
+// FIXME: disable dev mode
 // appMode = process.env.NODE_ENV || "development";
 appMode = "development";
 
@@ -109,7 +109,7 @@ app.get('/status', function (req, res) {
     }
 
 
-    appState = "active"; // FIXME: what is this for?
+    appState = "active";
 
     res.send({
         "status": sensorsOverallStatus,
@@ -613,7 +613,7 @@ function currentDate() {
 }
 
 function rebootIfNeeded() {
-    var eightHours = /*8 * 60 * */60 * 1000;
+    var eightHours = 8 * 60 * 60 * 1000;
     if (appState !== "disabled" && new Date().getTime() > (startDate.getTime() + eightHours)) {
         appState = "disabled";
         reboot();
@@ -622,6 +622,12 @@ function rebootIfNeeded() {
 
 function reboot() {
     exec("reboot now", function (out, err, err2) {
+        logger("rebooting... " + out + err + err2);
+    });
+}
+
+function forceReboot() {
+    exec("reboot -f", function (out, err, err2) {
         logger("rebooting... " + out + err + err2);
     });
 }
