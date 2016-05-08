@@ -24,6 +24,10 @@ scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
 serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 
+appMode = process.env.NODE_ENV || "development";
+
+videoDuration = (appMode === "production") ? "40" : "5";
+
 var moduleIsHorizontal = false;
 var dataFileNamePrefix = generateID();
 var gyroRunLoopInterval = 1000; // in milliseconds
@@ -153,7 +157,7 @@ var takingPictures = false;
 var takePicture = function () {
     logger(" ...Taking pictures... ");
 
-    var command = scriptsPath + "/capture.sh " + dataFileNamePrefix;
+    var command = scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration;
 
     exec(command, {timeout: 60000}, function (error, stdout, stderr) {
 
