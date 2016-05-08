@@ -614,7 +614,7 @@ function currentDate() {
 
 function rebootIfNeeded() {
     var eightHours = /*8 * 60 * */60 * 1000;
-    if (new Date().getTime() > (startDate.getTime() + eightHours)) {
+    if (appState !== "disabled" && new Date().getTime() > (startDate.getTime() + eightHours)) {
         appState = "disabled";
         reboot();
     }
