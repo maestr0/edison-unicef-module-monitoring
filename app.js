@@ -196,13 +196,13 @@ var takePicture = function () {
         takingPictures = false;
 
         /*logFile.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
-            function (err) {
-                if (err) {
-                    console.error("shit happened with the file writter");
-                    throw err;
-                }
-            });        
-            */
+         function (err) {
+         if (err) {
+         console.error("shit happened with the file writter");
+         throw err;
+         }
+         });
+         */
         appState = "active";
     });
 };
@@ -220,7 +220,7 @@ var powerUsbPortOff = function () {
 };
 
 setInterval(function () {
-    logger("state: " + appState );
+    logger("state: " + appState);
 }, 2000);
 
 
@@ -257,15 +257,15 @@ setInterval(function () {
 }, soapRunLoopInterval);
 
 
-function startAccessPoint(){
-    exec(scriptsPath + "/startAp.sh " , {timeout: 60},  function (error, stdout, stderr) {
+function startAccessPoint() {
+    exec(scriptsPath + "/startAp.sh ", {timeout: 60}, function (error, stdout, stderr) {
 
         if (error) {
-                        appState = "active";
-                        logger("about to reboot " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
+            appState = "active";
+            logger("about to reboot " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
         } else {
-                        logger("in AP mode " + stdout);
-                        appState = "disabled";
+            logger("in AP mode " + stdout);
+            appState = "disabled";
         }
     });
 
@@ -274,21 +274,20 @@ function startAccessPoint(){
 function accesspointTimeoutReboot() {
     setTimeout(function () {
         logger("ap timed out");
-        
-        exec(process.env.SCRIPTS + "/stopAp.sh " , function (error, stdout, stderr) {
 
-        if (error) {
-                        moduleIsHorizontal = false;
-                        appState = "active";
-                        logger("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
-        } else {
-                        logger("... AP mode stopped " + stdout);
-                        moduleIsHorizontal = false;
-                        appState = "active";
-        }
-    });
-        
-        
+        exec(process.env.SCRIPTS + "/stopAp.sh ", function (error, stdout, stderr) {
+
+            if (error) {
+                moduleIsHorizontal = false;
+                appState = "active";
+                logger("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
+            } else {
+                logger("... AP mode stopped " + stdout);
+                moduleIsHorizontal = false;
+                appState = "active";
+            }
+        });
+
 
         //FIXME: implement reboot here oui
     }, 1 * 60 * 1000); //1 minutes
@@ -296,9 +295,9 @@ function accesspointTimeoutReboot() {
 
 
 //------- WATER CONTAINER ROTATION
-setInterval(function(){
-    if (appState != "disabled"){
-        if (moduleIsHorizontal){
+setInterval(function () {
+    if (appState != "disabled") {
+        if (moduleIsHorizontal) {
             durationInHorizontalPosition++;
             if (durationInHorizontalPosition === 5) {
                 startAccessPoint();
@@ -586,21 +585,21 @@ function generateID() {
 
 
 function initRebootCount() {
-    
+
     fs.readFile(process.env.REBOOT_COUNT_PATH, "UTF8", function (err, data) {
-        logger(self.rebootCount + " vasa" + rebootCount );
-         self.rebootCount = 1 ;
+        logger(self.rebootCount + " vasa" + rebootCount);
+        self.rebootCount = 1;
         if (err) {
             console.log("error reboot count");
             self.rebootCount = "REBOOT_COUNT_UNDEFINED_";
         }
-        
+
         try {
             self.rebootCount = parseInt(data) + "";
-            rebootCount = self.rebootCount ;
+            rebootCount = self.rebootCount;
             console.log("reboot count ok " + self.rebootCount);
-            console.log( "reboot itself : " +rebootCount);
-            
+            console.log("reboot itself : " + rebootCount);
+
         } catch (e) {
             console.log("invalid reboot count");
             self.rebootCount = "REBOOT_COUNT_INVALID_";
