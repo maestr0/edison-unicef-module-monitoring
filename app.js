@@ -1,4 +1,5 @@
 var appVersion = 16;
+var startDate = new Date();
 
 var mraa = require('mraa');
 var express = require('express');
@@ -236,7 +237,7 @@ setInterval(function () {
 //------- SOAP TOUCHING
 setInterval(function () {
 
-
+    rebootIfNeeded();
     if (soapHasBeenTouched()) {
 
         powerUsbPortOn();
@@ -593,30 +594,6 @@ function generateID() {
 
 }
 
-
-function initRebootCount() {
-
-    fs.readFile(process.env.REBOOT_COUNT_PATH, "UTF8", function (err, data) {
-        logger(self.rebootCount + " vasa" + rebootCount);
-        self.rebootCount = 1;
-        if (err) {
-            console.log("error reboot count");
-            self.rebootCount = "REBOOT_COUNT_UNDEFINED_";
-        }
-
-        try {
-            self.rebootCount = parseInt(data) + "";
-            rebootCount = self.rebootCount;
-            console.log("reboot count ok " + self.rebootCount);
-            console.log("reboot itself : " + rebootCount);
-
-        } catch (e) {
-            console.log("invalid reboot count");
-            self.rebootCount = "REBOOT_COUNT_INVALID_";
-        }
-    });
-}
-
 function currentDate() {
     var d = new Date(),
         month = '' + (d.getMonth() + 1),
@@ -633,4 +610,18 @@ function currentDate() {
     if (min.length < 2) min = '0' + min;
     if (sec.length < 2) sec = '0' + sec;
     return [year, month, day].join('_') + '-' + [hour, min, sec].join('_');
+}
+
+function rebootIfNeeded() {
+    var eightHours = /*8 * 60 * */60 * 1000;
+    if (new Date().getTime() > (startDate.getTime() + eightHours)) {
+        appState = "disabled";
+        reboot();
+    }
+}
+
+function reboot() {
+    exec("reboot now", function (out, err, err2) {
+        logger("rebooting... " + out + err + err2);
+    });
 }
