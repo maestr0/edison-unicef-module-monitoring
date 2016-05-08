@@ -30,7 +30,7 @@ appMode = "development";
 
 console.log("APP MODE " + appMode);
 
-videoDuration = (appMode === "production") ? "40" : "5";
+videoDuration = (appMode === "production") ? "40" : "11";
 
 var moduleIsHorizontal = false;
 var dataFileNamePrefix = generateID();
