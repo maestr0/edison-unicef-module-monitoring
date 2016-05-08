@@ -26,7 +26,7 @@ rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 
 appMode = process.env.NODE_ENV || "development";
 
-logger("APP MODE " + appMode);
+console.log("APP MODE " + appMode);
 
 videoDuration = (appMode === "production") ? "40" : "5";
 
