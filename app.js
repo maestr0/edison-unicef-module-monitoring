@@ -515,7 +515,9 @@ function setupMonitoring() {
 
     if (touchSensorWorks()) {
         logger("TOUCH SENSOR OK");
-        touchSensor.configAN3944();
+        //touchSensor.configAN3944();
+        initTouchSensor();
+
         var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
         i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
         i2c.writeReg(touchThresholdAddress, touchThreshold);
@@ -577,7 +579,7 @@ function setupMonitoring() {
 
 
 function touchSensorWorks() {
-    touchI2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
+    var touchI2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
     touchI2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
     var touchSensorI2CWorks = 0;
     try {
@@ -589,6 +591,63 @@ function touchSensorWorks() {
     }
     return touchSensorI2CWorks;
 }
+
+
+function initTouchSensor() {
+    var touchI2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
+    touchI2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
+
+    touchI2c.writeReg(0x5e,0x0); // set all touch pins to 0
+
+    touchI2c.writeReg(0x2b,0x01); // set baseline data
+    touchI2c.writeReg(0x2c,0x01); // set baseline data
+    touchI2c.writeReg(0x2d,0x0); // set baseline data
+    touchI2c.writeReg(0x2e,0x0); // set baseline data
+
+    touchI2c.writeReg(0x2f,0x01); // set filter data lower than baseline
+    touchI2c.writeReg(0x30,0x01); // set filter data lower than baseline
+    touchI2c.writeReg(0x31,0xff); // set filter data lower than baseline
+    touchI2c.writeReg(0x32,0x02); // set filter data lower than baseline
+
+    touchI2c.writeReg(0x41, 0x0f); //touch threshold
+    touchI2c.writeReg(0x42, 0x0a); //touch threshold
+
+    touchI2c.writeReg(0x43, 0x0f); //touch threshold
+    touchI2c.writeReg(0x44, 0x0a); //touch threshold
+    touchI2c.writeReg(0x45, 0x0f); //touch threshold
+    touchI2c.writeReg(0x46, 0x0a); //touch threshold
+    touchI2c.writeReg(0x47, 0x0f); //touch threshold
+    touchI2c.writeReg(0x48, 0x0a); //touch threshold
+    touchI2c.writeReg(0x49, 0x0f); //touch threshold
+    touchI2c.writeReg(0x4A, 0x0a); //touch threshold
+    touchI2c.writeReg(0x4B, 0x0f); //touch threshold
+    touchI2c.writeReg(0x4C, 0x0a); //touch threshold
+    touchI2c.writeReg(0x4D, 0x0f); //touch threshold
+    touchI2c.writeReg(0x4E, 0x0a); //touch threshold
+    touchI2c.writeReg(0x4F, 0x0f); //touch threshold
+    touchI2c.writeReg(0x50, 0x0a); //touch threshold
+    touchI2c.writeReg(0x51, 0x0f); //touch threshold
+    touchI2c.writeReg(0x52, 0x0a); //touch threshold
+    touchI2c.writeReg(0x53, 0x0f); //touch threshold
+    touchI2c.writeReg(0x54, 0x0a); //touch threshold
+    touchI2c.writeReg(0x55, 0x0f); //touch threshold
+    touchI2c.writeReg(0x56, 0x0a); //touch threshold
+    touchI2c.writeReg(0x57, 0x0f); //touch threshold
+    touchI2c.writeReg(0x58, 0x0a); //touch threshold
+
+    touchI2c.writeReg(0x5D, 0x04); //filter configuration
+
+    touchI2c.writeReg(0x7b, 0x0b); //Autoconfiguration registers
+
+    touchI2c.writeReg(0x7d, 0x9c); //Autoconfiguration registers
+    touchI2c.writeReg(0x7e, 0x65); //Autoconfiguration registers
+    touchI2c.writeReg(0x7f, 0x8c); //Autoconfiguration registers
+
+    touchI2c.writeReg(0x5e, 0x01); //this step is always LAST, only pin 0 is O
+
+
+}
+
 
 function generateID() {
     var randomString = Math.random().toString(36).substring(10);
