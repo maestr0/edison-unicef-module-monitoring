@@ -1,4 +1,4 @@
-var appVersion = 16;
+var appVersion = 17;
 var startDate = new Date();
 
 var mraa = require('mraa');
