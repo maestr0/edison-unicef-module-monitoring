@@ -29,8 +29,6 @@ rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 // appMode = process.env.NODE_ENV || "development";
 appMode = "development";
 
-console.log("APP MODE " + appMode);
-
 videoDuration = (appMode === "production") ? "40" : "11";
 
 var moduleIsHorizontal = false;
@@ -504,6 +502,9 @@ function setupMonitoring() {
     app = express();
     app.set('port', (process.env.MONITORING_PORT || 3001));
 
+
+
+    logger("APP MODE " + appMode);
 
     //------------------ initialize power booster to OFF
     powerBoost = new mraa.Gpio(voltageBoostPin);
