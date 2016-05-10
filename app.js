@@ -16,6 +16,8 @@ var exec = require('child_process').exec;
 var appState = "initialize";
 
 var alreadyRecordingMovie = false;
+var moduleisRotation = false ;
+var durationInHorizontalPosition = 0 ;
 
 var capacitiveSensorInterruptPin = 8;
 var voltageBoostPin = 9;
@@ -35,6 +37,7 @@ appMode = "development";
 
 videoDuration = (appMode === "production") ? "40" : "11";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (1000 * 60 * 7) : 1000;
+delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : (2 * 60 * 1000);
 
 var moduleIsHorizontal = false;
 var dataFileNamePrefix = generateID();
@@ -47,8 +50,7 @@ var weAreRotating = 0x60; //0x40 is interrupt triggered
 var touchThresholdAddress = 0x41; // address to set the touch threshold,
 var touchThreshold = 255; // lowest sensitivity
 
-var tippyTapID = "XX"; //TODO: we need a way to read the tippy tap id number to add it to fileNames
-var touchDataID = 0;  //TODO: we need a way to read the latest data id for touchnumber to add it to fileNames
+var touchDataID = 0;
 
 var ErrorLogFileName = moduleDataPath + "/error.log";
 var templateDataLogTouch = serialNumber + ",C,";
@@ -64,7 +66,7 @@ var gyroAccelCompass; //= new IMUClass.LSM9DS0()  ;
 var app;
 
 
-stopAccessPoint(); // in case of a previous crash of AP
+//stopAccessPoint(); //FIXME: in case of a previous crash of AP, AP stays on upon reboot. bad
 setupMonitoring();
 
 
@@ -226,7 +228,7 @@ var powerUsbPortOff = function () {
 
 setInterval(function () {
     logger("state: " + appState );
-}, 1500);
+}, 5000);
 
 
 //------- SOAP TOUCHING
@@ -262,25 +264,41 @@ setInterval(function () {
 //------- WATER CONTAINER IN HORIZONTAL POSITION --------------
 setInterval(function () {
     if (appState != "disabled") {
+
+
+
         if (moduleIsHorizontal) {
+
+            logger("registering horizontality");
+            // this needs to be done twice?
+            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
+            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
+            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+
+
             durationInHorizontalPosition++;
             if (durationInHorizontalPosition === 5) {
                 startAccessPoint();
                 accesspointTimeoutReboot();
             }
-            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
-            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
-            moduleIsHorizontal = false;
+
+            setTimeout(resetHorizontalPosition, 250);
         }
-        else {
-            durationInHorizontalPosition = 0;
-        }
+        else durationInHorizontalPosition = 0;
+
     }
 }, 1000);
 
 
+var resetHorizontalPosition = function(){
+    moduleIsHorizontal = false;
+
+}
+
 setInterval(function () {
 
+    if (!moduleisRotation) return;
     //if ( thereIsARotation()) {
     // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_WHO_AM_I_XM )); // if chip failed return false all the time
     // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G )); // if chip failed return false all the time
@@ -291,29 +309,41 @@ setInterval(function () {
     var x = new IMUClass.new_floatp();
     var y = new IMUClass.new_floatp();
     var z = new IMUClass.new_floatp();
-    gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
     gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+
+    gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC); // for horizontal
+
     //logger("Origin int GEN2: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC).toString(16) + ". " +
     //  "Origin int GEN1: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC).toString(16));// + ". "+
     //"Origin INTG: 0x"+ gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_SRC_G).toString(16) );
 
     gyroAccelCompass.getGyroscope(x, y, z);
-    var gyroData = "Gyroscope:     GX: " + Math.round(IMUClass.floatp_value(x)) + " AY: " + Math.round(IMUClass.floatp_value(y)) + " AZ: " + Math.round(IMUClass.floatp_value(z));
 
-    //logger(gyroData);
+    var gyroXAxis = Math.round(IMUClass.floatp_value(x)) ;
+    var gyroYAxis = Math.round(IMUClass.floatp_value(y)) ;
+    var gyroZAxis = Math.round(IMUClass.floatp_value(z)) ;
 
 
-    gyroAccelCompass.getAccelerometer(x, y, z);
+    if (!(gyroXAxis >  gyroYAxis ) && !( gyroZAxis >  gyroYAxis )){
+        logger("Gyroscope:     GX: " + gyroXAxis + " AY: " + gyroYAxis + " AZ: " + gyroZAxis);
+
+        if (!alreadyRecordingMovie) {
+            //startCamera();
+
+        }
+    }
+
+
+
+    gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
     //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
 
 
-    if (!alreadyRecordingMovie) {
-        //startCamera();
 
-    }
     //}
+    moduleisRotation = false ;
 
-}, 1000);
+}, 100);
 
 
 function startAccessPoint() {
@@ -354,7 +384,7 @@ function accesspointTimeoutReboot() {
             reboot(); //reboot no matter what after AP mode stops
         });
 
-    }, 20 * 60 * 1000);
+    }, delayBeforeAccessPointTimeout);
 }
 
 
@@ -369,6 +399,7 @@ function stopAccessPoint(){
         } else {
             logger("... AP mode OFF" + stdout);
         }
+    });
 
 }
 
@@ -378,15 +409,17 @@ function stopAccessPoint(){
 //---------------------- IRQ CALLBACK --------------------------
 
 function irqTouchCallback() {
-    // Leave this callback empty, only for waking up the device
+
     numberOfTouchOnSoap++;
-    logger("-ISR Touch: " + numberOfTouchOnSoap);
+    //logger("-ISR Touch: " + numberOfTouchOnSoap);
 
 }
 
 function gyroInterruptCallBack() {
     // Leave this callback empty, only for waking up the device
+    moduleisRotation = true ;
     logger("Rotation detected by ISR !!!!");
+
 }
 
 function horizontalPositionCallBack() {
@@ -394,12 +427,9 @@ function horizontalPositionCallBack() {
 }
 
 function moduleTransportationCallBack() {
-    if (moduleIsHorizontal === false) {
-        logger("Module transportation detected by ISR !!!!" + new Date().getTime());
-    }
 
     moduleIsHorizontal = true;
-
+    //logger("-ISR horizontal");
 }
 //----------------- UTILITY FUNCTIONS --------------------------
 
@@ -417,7 +447,9 @@ function setupGyroscope() {
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG2_G, 0x00);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x80);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00);
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, 0x25); // 0x25 ); //set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, 0x20); // 0x25 ); //set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
+    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x0A); //set minimum rotation duration to trigger interrupt (based on frequency)
+
 
     //showGyrodebugInfo();
 
@@ -436,14 +468,13 @@ function setupGyroscope() {
 
 function setupAccelerometer() {
 
-    //Setup interrupt 1 for horizontal position for more than 5 seconds
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_REG, 0x20);
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_REG, 0x20); //generation on Z high event
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG0_XM, 0x00); //default value
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG1_XM, 0x67); //0x64); //set Frequency of accelero sensing (ODR is 100 Hz) and axis enabled (z)
 
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG2_XM, 0x00); // Set accelero scale to 2g
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG3_XM, 0x20); //enable pinXM for acclero interrupt
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG5_XM, 0x03);
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG5_XM, 0x00); //not latching anything// latch GEN 2 but not GEN 1
 
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_DURATION, 0x2F); // set minimum acceleration duration to trigger interrupt
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_THS, 0x3E); // set threshold for slightly below 1G value to trigger interrupt (based on 2G scale in accelero)
