@@ -248,8 +248,8 @@ setInterval(function () {
         console.log(gyroData);
 
         if (!takingPictures) {
-            // takingPictures = true;
-            //takePicture();
+            // alreadyRecordingMovie = true;
+            //recordMovie();
 
         }
     }

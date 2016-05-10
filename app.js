@@ -1,6 +1,7 @@
 var appVersion = 17;
 var startDate = new Date();
 
+var numberOfTouchOnSoap = 0;
 var mraa = require('mraa');
 var express = require('express');
 var logFile = require('fs');
@@ -12,6 +13,8 @@ var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using defaul
 var exec = require('child_process').exec;
 
 var appState = "initialize";
+
+var alreadyRecordingMovie = false;
 
 var capacitiveSensorInterruptPin = 8;
 var voltageBoostPin = 9;
@@ -30,11 +33,10 @@ rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 appMode = "development";
 
 videoDuration = (appMode === "production") ? "40" : "11";
+delayBeforeActivatingAllSensors = (appMode === "production") ? (1000 * 60 * 7) : 1000;
 
 var moduleIsHorizontal = false;
 var dataFileNamePrefix = generateID();
-var gyroRunLoopInterval = 1000; // in milliseconds
-var soapRunLoopInterval = 100; // in milliseconds
 
 var gyroZaxisTransient = 0x20; //0o00100000 ;/
 var gyroZaxisLatchedHigh = 0x60; //01100000 ;
@@ -79,31 +81,23 @@ app.get('/status', function (req, res) {
 
     switch (req.query.device) {
         case "motion" :
-            // CAPACITIVE SENSOR STATUS SYSTEM ------------
-            if (!touchSensorWorks()) {
-                errorStatus = "Touch sensor damaged";
-                sensorsOverallStatus = "FAIL";
-            }
+                        if (!touchSensorWorks()) {
+                            errorStatus = "Touch sensor damaged";
+                            sensorsOverallStatus = "FAIL";
+                        }
+                        break;
 
-            break;
+        case "touch" :
 
-        case "touch" :  // IMU SENSOR STATUS SYSTEM ------------
-            if (isEmpty(gyroAccelCompass)) {
-                errorStatus = "IMU damaged. ";
-                sensorsOverallStatus = "FAIL";
-            }
-            else {
-                if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
-                    errorStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
-                    sensorsOverallStatus = "ERROR";
-                }
-                if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_WHO_AM_I_XM) === 255) {
-                    errorStatus += "Accelerometer unreachable. "; // if chip failed return false all the time
-                    sensorsOverallStatus = "ERROR";
-                }
-            }
-
-            break;
+                        if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
+                            errorStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
+                            sensorsOverallStatus += "Gyroscope FAIL";
+                        }
+                        if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_WHO_AM_I_XM) === 255) {
+                            errorStatus += "Accelerometer unreachable. "; // if chip failed return false all the time
+                            sensorsOverallStatus += "Accelerometer FAIL";
+                        }
+                        break;
     }
 
 
@@ -155,10 +149,9 @@ var processLogQueue = function () {
 //setTimeout(processLogQueue, 1000);
 
 
-var takingPictures = false;
 
-var takePicture = function () {
-    logger(" ...Taking pictures... ");
+var recordMovie = function () {
+    logger(" ...about to record a movie... ");
 
     var command = scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration;
 
@@ -166,12 +159,8 @@ var takePicture = function () {
 
         if (!error) {
             logger("image captured successfully");
-            msg = "image captured successfully";
         } else {
-
-            console.error("shit happened with the camera " + stderr);
-            msg = "ERROR: shit happened " + stderr;
-
+            logger(" ERRO: shit happened with the camera " + stderr);
         }
 
         powerUsbPortOff();
@@ -182,7 +171,7 @@ var takePicture = function () {
 
         exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60000}, function (error, stdout, stderr) {
             if (!error) {
-                logger("PAWEL IS PERFECT !!!!  ------------------------ archive completed" + stdout);
+                logger("... archive completed" + stdout);
 
                 exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error, stdout, stderr) {
                     if (error) {
@@ -193,14 +182,13 @@ var takePicture = function () {
             }
             else {
 
-                console.error("shit happened with the archiver " + stderr);
-                msg = "ERROR: shit happened " + stderr;
+                logger("ERRO : Archiver failed to archive data" + stderr);
             }
 
 
         });
 
-        takingPictures = false;
+        alreadyRecordingMovie = false;
 
         /*logFile.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
          function (err) {
@@ -214,6 +202,12 @@ var takePicture = function () {
     });
 };
 
+var startCamera = function (){
+    powerUsbPortOn();
+    alreadyRecordingMovie = true;
+    appState = "busy";
+    setTimeout(recordMovie, 3000);
+}
 
 //---------------------- RUN LOOPS --------------------------
 var powerUsbPortOn = function () {
@@ -223,8 +217,9 @@ var powerUsbPortOn = function () {
 };
 
 var powerUsbPortOff = function () {
+    logger("About to go back to 3.3 v... ");
     powerBoost.write(0);
-    logger("Back to 3.3 v");
+    logger("... Back to 3.3 v");
 };
 
 setInterval(function () {
@@ -236,16 +231,12 @@ setInterval(function () {
 setInterval(function () {
 
     rebootIfNeeded();
-    if (soapHasBeenTouched() && appState != "disabled") {
 
-        powerUsbPortOn();
+    if ( (numberOfTouchOnSoap > 0)  && appState != "disabled") {
+        soapHasBeenTouched();
 
-        if (!takingPictures) {
-
-            takingPictures = true;
-            appState = "busy";
-            setTimeout(takePicture, 3000);
-
+        if (!alreadyRecordingMovie) {
+            startCamera();
         }
 
         logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt", templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n', encoding = 'utf8',
@@ -259,50 +250,14 @@ setInterval(function () {
                 }
             });
 
+        numberOfTouchOnSoap = 0;
 
         //queue.push("button pressed @ " + new Date().getTime());
     }
-}, soapRunLoopInterval);
+}, 100);
 
 
-function startAccessPoint() {
-    exec(scriptsPath + "/startAp.sh ", {timeout: 60000}, function (error, stdout, stderr) {
-
-        if (error) {
-            appState = "active";
-            logger("about to reboot " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
-        } else {
-            logger("in AP mode " + stdout);
-            appState = "disabled";
-        }
-    });
-
-}
-
-function accesspointTimeoutReboot() {
-    setTimeout(function () {
-        logger("ap timed out");
-
-        exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
-
-            if (error) {
-                moduleIsHorizontal = false;
-                appState = "active";
-                logger("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr); //FIXME: needs actual reboot here
-            } else {
-                logger("... AP mode stopped " + stdout);
-                moduleIsHorizontal = false;
-                appState = "active";
-            }
-        });
-
-
-        //FIXME: implement reboot here oui
-    }, 5 * 60 * 1000); //1 minutes
-}
-
-
-//------- WATER CONTAINER ROTATION
+//------- WATER CONTAINER IN HORIZONTAL POSITION --------------
 setInterval(function () {
     if (appState != "disabled") {
         if (moduleIsHorizontal) {
@@ -320,6 +275,7 @@ setInterval(function () {
         }
     }
 }, 1000);
+
 
 setInterval(function () {
 
@@ -349,14 +305,59 @@ setInterval(function () {
     //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
 
 
-    if (!takingPictures) {
-        // takingPictures = true;
-        //takePicture();
+    if (!alreadyRecordingMovie) {
+        //startCamera();
 
     }
     //}
 
-}, gyroRunLoopInterval);
+}, 1000);
+
+
+function startAccessPoint() {
+    exec(scriptsPath + "/startAp.sh ", {timeout: 60000}, function (error, stdout, stderr) {
+
+        if (error) {
+            appState = "active";
+            logger("ERROR: could not start AP mode. About to reboot " + error + ' --- ' + stderr);
+            reboot();
+
+        } else {
+            logger("in AP mode " + stdout);
+            appState = "disabled";
+        }
+    });
+
+}
+
+function accesspointTimeoutReboot() {
+    setTimeout(function () {
+        logger("ap timed out");
+
+        exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
+
+            if (error) {
+                moduleIsHorizontal = false;
+                appState = "active";
+                logger("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr);
+
+            } else {
+                logger("... AP mode stopped " + stdout);
+                moduleIsHorizontal = false;
+                appState = "active";
+            }
+
+            reboot(); //reboot no matter what after AP mode stops
+        });
+
+    }, 20 * 60 * 1000);
+}
+
+
+
+
+
+
 
 
 //---------------------- IRQ CALLBACK --------------------------
@@ -364,6 +365,7 @@ setInterval(function () {
 function irqTouchCallback() {
     // Leave this callback empty, only for waking up the device
     logger("-Touch detected by ISR");
+    numberOfTouchOnSoap++;
 }
 
 function gyroInterruptCallBack() {
@@ -389,7 +391,6 @@ function soapHasBeenTouched() {
     if (soapSensorIsDamaged) return false;
     touchSensor.readButtons();
     var isTouched = touchSensor.m_buttonStates & 1;
-    if (isTouched) logger("soap");
     return (isTouched);
 }
 
@@ -561,7 +562,7 @@ function setupMonitoring() {
             gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
             horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
             horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
-        }, 500);
+        }, delayBeforeActivatingAllSensors);
     }
 
 
