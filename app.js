@@ -1,3 +1,4 @@
+
 var appVersion = 17;
 var startDate = new Date();
 
@@ -63,6 +64,7 @@ var gyroAccelCompass; //= new IMUClass.LSM9DS0()  ;
 var app;
 
 
+stopAccessPoint(); // in case of a previous crash of AP
 setupMonitoring();
 
 
@@ -160,7 +162,7 @@ var recordMovie = function () {
         if (!error) {
             logger("image captured successfully");
         } else {
-            logger(" ERRO: shit happened with the camera " + stderr);
+            logger(" ERROR: Camera could not record videos" + stderr);
         }
 
         powerUsbPortOff();
@@ -213,7 +215,7 @@ var startCamera = function (){
 var powerUsbPortOn = function () {
     logger("about to set 1 on POWER BOOST pin");
     powerBoost.write(1);
-    logger("soap wire touched, boost power to 5v");
+    logger("... power boosted to 5v");
 };
 
 var powerUsbPortOff = function () {
@@ -223,8 +225,8 @@ var powerUsbPortOff = function () {
 };
 
 setInterval(function () {
-    logger("state: " + appState);
-}, 5000);
+    logger("state: " + appState );
+}, 1500);
 
 
 //------- SOAP TOUCHING
@@ -232,8 +234,7 @@ setInterval(function () {
 
     rebootIfNeeded();
 
-    if ( (numberOfTouchOnSoap > 0)  && appState != "disabled") {
-        soapHasBeenTouched();
+    if (  (soapHasBeenTouched() || numberOfTouchOnSoap >0 ) && appState != "disabled") {
 
         if (!alreadyRecordingMovie) {
             startCamera();
@@ -250,11 +251,12 @@ setInterval(function () {
                 }
             });
 
+
         numberOfTouchOnSoap = 0;
 
         //queue.push("button pressed @ " + new Date().getTime());
     }
-}, 100);
+}, 50);
 
 
 //------- WATER CONTAINER IN HORIZONTAL POSITION --------------
@@ -315,7 +317,9 @@ setInterval(function () {
 
 
 function startAccessPoint() {
-    exec(scriptsPath + "/startAp.sh ", {timeout: 60000}, function (error, stdout, stderr) {
+
+    //NOTE: no timeout for exec here as it will leave the app stalled. accesspointTimeoutReboot is used instead
+    exec(scriptsPath + "/startAp.sh ", function (error, stdout, stderr) {
 
         if (error) {
             appState = "active";
@@ -355,7 +359,18 @@ function accesspointTimeoutReboot() {
 
 
 
+function stopAccessPoint(){
 
+    exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
+
+        if (error) {
+            logger("Stopping AP didn't work " + error + ' --- ' + stderr);
+
+        } else {
+            logger("... AP mode OFF" + stdout);
+        }
+
+}
 
 
 
@@ -364,8 +379,9 @@ function accesspointTimeoutReboot() {
 
 function irqTouchCallback() {
     // Leave this callback empty, only for waking up the device
-    logger("-Touch detected by ISR");
     numberOfTouchOnSoap++;
+    logger("-ISR Touch: " + numberOfTouchOnSoap);
+
 }
 
 function gyroInterruptCallBack() {
@@ -403,7 +419,7 @@ function setupGyroscope() {
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, 0x25); // 0x25 ); //set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
 
-    showGyrodebugInfo();
+    //showGyrodebugInfo();
 
     /*gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x48 ); //0x60 is latched interrupt on Y axis
 
@@ -677,6 +693,7 @@ function currentDate() {
 function rebootIfNeeded() {
     var eightHours = 8 * 60 * 60 * 1000;
     if (appState !== "disabled" && new Date().getTime() > (startDate.getTime() + eightHours)) {
+        logger("--------------- Reboot needed ---------------");
         appState = "disabled";
         reboot();
     }
