@@ -18,7 +18,6 @@ var touchSensorDriver = require('jsupm_mpr121');
 var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using default parameters (bus 1, gyro addr 6b, xm addr 1d)
 var exec = require('child_process').exec;
 
-
 var alreadyRecordingMovie = false;
 var moduleisRotation = false ;
 var durationInHorizontalPosition = 0 ;
@@ -257,10 +256,10 @@ var powerUsbPortOff = function () {
     powerBoost.write(0);
     logger("... Back to 3.3 v");
 };
-
+/*
 setInterval(function () {
     logger("state: " + appState );
-}, 5000);
+}, 5000);*/
 
 
 //------- SOAP TOUCHING
@@ -290,52 +289,42 @@ setInterval(function () {
 
         //queue.push("button pressed @ " + new Date().getTime());
     }
-}, 50);
+}, 100);
 
 
 //------- WATER CONTAINER IN HORIZONTAL POSITION --------------
 setInterval(function () {
     if (appState != "disabled") {
-        //var test = gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC) ;
         
-      //  logger("Z axis src = " +test);
-    //    if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC) & 0xDF > 0) {
+            gyroAccelCompass.update();
 
-        
             var x = new IMUClass.new_floatp();
             var y = new IMUClass.new_floatp();
             var z = new IMUClass.new_floatp();
             gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
-            //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
 
-            if (IMUClass.floatp_value(z) > 0.8 && IMUClass.floatp_value(z)  < 1.5){
-            logger("registering horizontality");
-            // this needs to be done twice?
-            //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
-            //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
-            //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
-            //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+            //logger("counting horizontal : " + durationInHorizontalPosition + " x: " + IMUClass.floatp_value(z));
+
+            if ( (IMUClass.floatp_value(z) > 0.985) && (IMUClass.floatp_value(z)  < 2.0) && ( IMUClass.floatp_value(x) < 1) && ( IMUClass.floatp_value(y) < 1)){
+
+                durationInHorizontalPosition++;
 
 
-            durationInHorizontalPosition++;
-            if (durationInHorizontalPosition === 5) {
-                startAccessPoint();
-                accesspointTimeoutReboot();
+                if (durationInHorizontalPosition === 15) {
+                    //fixme remove comments
+                   // startAccessPoint();
+                   // accesspointTimeoutReboot();
+                }
+
+            }else {
+                if ( (IMUClass.floatp_value(z) < 0.98) && (durationInHorizontalPosition > 0 )) durationInHorizontalPosition--;
+
             }
 
-            moduleIsHorizontal = 0;
-            //setTimeout(resetHorizontalPosition, 50);
-        }
-        else durationInHorizontalPosition = 0;
-
     }
-}, 1000);
+}, 500);
 
 
-var resetHorizontalPosition = function(){
-    moduleIsHorizontal = 0;
-
-}
 
 setInterval(function () {
 
@@ -412,13 +401,11 @@ function accesspointTimeoutReboot() {
         exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
 
             if (error) {
-                moduleIsHorizontal = 0;
                 appState = "active";
                 logger("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr);
 
             } else {
                 logger("... AP mode stopped " + stdout);
-                moduleIsHorizontal = 0;
                 appState = "active";
             }
 
@@ -464,8 +451,7 @@ function gyroInterruptCallBack() {
 }
 
 function horizontalPositionCallBack() {
-    moduleIsHorizontal++;
-    logger("- ISR horizontal ");
+    // Leave this callback empty, only for waking up the device
 }
 
 function moduleTransportationCallBack() {
@@ -598,7 +584,7 @@ function showHardwareStateOnButton(){
 
     setTimeout(function () {
         pushButtonLight.write(0);
-    }, 5000);
+    }, 8000);
 
 
 }
@@ -610,7 +596,7 @@ function setupMonitoring() {
 
    
     initWebService();
-    logger("App mode: " + appMode + "\n\r App state:" + appState);
+    logger("App mode: " + appMode);
 
     //------------------ initialize power booster to OFF
     powerBoost = new mraa.Gpio(voltageBoostPin);
@@ -668,7 +654,7 @@ function setupMonitoring() {
 
     showHardwareStateOnButton();
 
-    logger("Starting monitoring app v" + appVersion + "\n\r");
+    logger("\n\r-----------------------------------------------------------\n\r---------------- Starting monitoring app v" + appVersion + " ----------------\n\r");
     appState = "active";
 }
 
