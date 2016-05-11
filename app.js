@@ -4,16 +4,20 @@ var startDate = new Date();
 
 var numberOfTouchOnSoap = 0;
 var mraa = require('mraa');
+var appState = "initialize";
+
+
+
 var express = require('express');
 var logFile = require('fs');
 var logError = require('fs');
 var fs = require('fs');
-var SerialPort = require("serialport").SerialPort;
+
+
 var touchSensorDriver = require('jsupm_mpr121');
 var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using default parameters (bus 1, gyro addr 6b, xm addr 1d)
 var exec = require('child_process').exec;
 
-var appState = "initialize";
 
 var alreadyRecordingMovie = false;
 var moduleisRotation = false ;
@@ -39,7 +43,7 @@ videoDuration = (appMode === "production") ? "40" : "11";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (1000 * 60 * 7) : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : (2 * 60 * 1000);
 
-var moduleIsHorizontal = false;
+var moduleIsHorizontal = 0;
 var dataFileNamePrefix = generateID();
 
 var gyroZaxisTransient = 0x20; //0o00100000 ;/
@@ -55,9 +59,8 @@ var touchDataID = 0;
 var ErrorLogFileName = moduleDataPath + "/error.log";
 var templateDataLogTouch = serialNumber + ",C,";
 
-var serialPath = "/dev/ttyMFD2";
 var i2c;
-var serialPort;
+
 var powerBoost;
 var touchSensor;
 var soapSensorIsDamaged = false;
@@ -66,61 +69,86 @@ var gyroAccelCompass; //= new IMUClass.LSM9DS0()  ;
 var app;
 
 
-//stopAccessPoint(); //FIXME: in case of a previous crash of AP, AP stays on upon reboot. bad
-setupMonitoring();
 
 
-app.get('/', function (req, res) {
-    res.send('Monitoring');
-});
-app.get('/status', function (req, res) {
-    appState = "disabled";
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET');
-    res.header('Access-Control-Allow-Headers', 'Content-Type');
 
 
-    var sensorsOverallStatus = "OK";
-    var errorStatus = "";
-
-    switch (req.query.device) {
-        case "motion" :
-                        if (!touchSensorWorks()) {
-                            errorStatus = "Touch sensor damaged";
-                            sensorsOverallStatus = "FAIL";
-                        }
-                        break;
-
-        case "touch" :
-
-                        if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
-                            errorStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
-                            sensorsOverallStatus += "Gyroscope FAIL";
-                        }
-                        if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_WHO_AM_I_XM) === 255) {
-                            errorStatus += "Accelerometer unreachable. "; // if chip failed return false all the time
-                            sensorsOverallStatus += "Accelerometer FAIL";
-                        }
-                        break;
-    }
-
-
-    appState = "active";
-
-    res.send({
-        "status": sensorsOverallStatus,
-        "error": errorStatus
-    });
-});
-
-app.listen(app.get('port'), function () {
-    console.log('Monitoring listening on port ' + app.get('port'));
+// ONLY INITIALIZATION BEFORE OTHER ELEMENTS
+var SerialPort = require("serialport").SerialPort;
+var serialPath = "/dev/ttyMFD2";
+var serialPort = new SerialPort(serialPath, {
+    baudrate: 115200
 });
 
 serialPort.on("open", function () {
     serialPort.write("Starting monitoring app v" + appVersion + "\n\r", function (err, results) { //Write data
     });
+    if (appState === "initialize") setupMonitoring();
 });
+
+serialPort.on("error", function () {
+    console.log("serial port error, closing port... ");
+    if (appState === "initialize") setupMonitoring();
+
+});
+
+serialPort.on("close", function () {
+    console.log("...serial port closed");
+    if (appState === "initialize") setupMonitoring();
+});
+
+
+var initWebService = function (){
+    app = express();
+    app.set('port', (process.env.MONITORING_PORT || 3001));
+    app.get('/', function (req, res) {
+        res.send('Monitoring');
+    });
+    app.get('/status', function (req, res) {
+        appState = "disabled";
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+
+
+        var sensorsOverallStatus = "OK";
+        var errorStatus = "";
+
+        switch (req.query.device) {
+            case "motion" :
+                if (!touchSensorWorks()) {
+                    errorStatus = "Touch sensor damaged";
+                    sensorsOverallStatus = "FAIL";
+                }
+                break;
+
+            case "touch" :
+
+                if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
+                    errorStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
+                    sensorsOverallStatus += "Gyroscope FAIL";
+                }
+                if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_WHO_AM_I_XM) === 255) {
+                    errorStatus += "Accelerometer unreachable. "; // if chip failed return false all the time
+                    sensorsOverallStatus += "Accelerometer FAIL";
+                }
+                break;
+        }
+
+
+        appState = "active";
+
+        res.send({
+            "status": sensorsOverallStatus,
+            "error": errorStatus
+        });
+    });
+    app.listen(app.get('port'), function () {
+        console.log('Monitoring listening on port ' + app.get('port'));
+    });
+}
+
+
 
 
 var c = 0;
@@ -155,6 +183,8 @@ var processLogQueue = function () {
 
 
 var recordMovie = function () {
+
+
     logger(" ...about to record a movie... ");
 
     var command = scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration;
@@ -207,6 +237,8 @@ var recordMovie = function () {
 };
 
 var startCamera = function (){
+    if (appState == "disabled") return;
+
     powerUsbPortOn();
     alreadyRecordingMovie = true;
     appState = "busy";
@@ -264,17 +296,25 @@ setInterval(function () {
 //------- WATER CONTAINER IN HORIZONTAL POSITION --------------
 setInterval(function () {
     if (appState != "disabled") {
+        //var test = gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC) ;
+        
+      //  logger("Z axis src = " +test);
+    //    if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC) & 0xDF > 0) {
 
+        
+            var x = new IMUClass.new_floatp();
+            var y = new IMUClass.new_floatp();
+            var z = new IMUClass.new_floatp();
+            gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
+            //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
 
-
-        if (moduleIsHorizontal) {
-
+            if (IMUClass.floatp_value(z) > 0.8 && IMUClass.floatp_value(z)  < 1.5){
             logger("registering horizontality");
             // this needs to be done twice?
-            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
-            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
-            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
-            gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+            //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
+            //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+            //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC);
+            //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
 
 
             durationInHorizontalPosition++;
@@ -283,7 +323,8 @@ setInterval(function () {
                 accesspointTimeoutReboot();
             }
 
-            setTimeout(resetHorizontalPosition, 250);
+            moduleIsHorizontal = 0;
+            //setTimeout(resetHorizontalPosition, 50);
         }
         else durationInHorizontalPosition = 0;
 
@@ -292,7 +333,7 @@ setInterval(function () {
 
 
 var resetHorizontalPosition = function(){
-    moduleIsHorizontal = false;
+    moduleIsHorizontal = 0;
 
 }
 
@@ -309,9 +350,9 @@ setInterval(function () {
     var x = new IMUClass.new_floatp();
     var y = new IMUClass.new_floatp();
     var z = new IMUClass.new_floatp();
-    gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
+    //test if removing does not alter horizontal detection gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
 
-    gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC); // for horizontal
+    //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC); // for horizontal
 
     //logger("Origin int GEN2: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC).toString(16) + ". " +
     //  "Origin int GEN1: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC).toString(16));// + ". "+
@@ -335,7 +376,7 @@ setInterval(function () {
 
 
 
-    gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
+    //gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
     //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
 
 
@@ -371,17 +412,17 @@ function accesspointTimeoutReboot() {
         exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
 
             if (error) {
-                moduleIsHorizontal = false;
+                moduleIsHorizontal = 0;
                 appState = "active";
                 logger("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr);
 
             } else {
                 logger("... AP mode stopped " + stdout);
-                moduleIsHorizontal = false;
+                moduleIsHorizontal = 0;
                 appState = "active";
             }
 
-            reboot(); //reboot no matter what after AP mode stops
+            setTimeout(reboot, 5000) //reboot no matter what after AP mode stops
         });
 
     }, delayBeforeAccessPointTimeout);
@@ -423,13 +464,12 @@ function gyroInterruptCallBack() {
 }
 
 function horizontalPositionCallBack() {
-    logger("Module detected in horizontal position by ISR !!!!");
+    moduleIsHorizontal++;
+    logger("- ISR horizontal ");
 }
 
 function moduleTransportationCallBack() {
-
-    moduleIsHorizontal = true;
-    //logger("-ISR horizontal");
+    logger("-ISR transportation");
 }
 //----------------- UTILITY FUNCTIONS --------------------------
 
@@ -468,13 +508,14 @@ function setupGyroscope() {
 
 function setupAccelerometer() {
 
+    // SETUP GEN 1 FOR Z AXIS HORIZONTAL DETECTION
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_REG, 0x20); //generation on Z high event
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG0_XM, 0x00); //default value
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG1_XM, 0x67); //0x64); //set Frequency of accelero sensing (ODR is 100 Hz) and axis enabled (z)
 
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG2_XM, 0x00); // Set accelero scale to 2g
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG3_XM, 0x20); //enable pinXM for acclero interrupt
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG5_XM, 0x00); //not latching anything// latch GEN 2 but not GEN 1
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_CTRL_REG5_XM, 0x0); // nothing latch //GEN 1
 
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_DURATION, 0x2F); // set minimum acceleration duration to trigger interrupt
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_THS, 0x3E); // set threshold for slightly below 1G value to trigger interrupt (based on 2G scale in accelero)
@@ -534,25 +575,42 @@ process.on('SIGINT', function () {
 });
 
 
+
+function showHardwareStateOnButton(){
+    var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
+    pushButtonLight.dir(mraa.DIR_OUT);
+
+    var blinkingOn = setInterval( function(){
+        pushButtonLight.write(1);
+    }, 200);
+
+
+    var blinkingOff =  setInterval( function(){
+        pushButtonLight.write(0);
+    }, 250);
+
+    if ( !(soapSensorIsDamaged || IMUSensorIsDamaged) ) {
+        clearInterval(blinkingOn);
+        clearInterval(blinkingOff);
+        pushButtonLight.write(1);
+    }
+
+
+    setTimeout(function () {
+        pushButtonLight.write(0);
+    }, 5000);
+
+
+}
+
 //-----------------------------------------------------------------------------------------------------------
 function setupMonitoring() {
 
     var pushButtonLightStyle = 0;
 
-    //------------------ initialize serial port
-    serialPort = new SerialPort(serialPath, {
-        baudrate: 115200
-    });
-
-    logger(appState);
-
-    //------------------ initialize server for hardware status report
-    app = express();
-    app.set('port', (process.env.MONITORING_PORT || 3001));
-
-
-
-    logger("APP MODE " + appMode);
+   
+    initWebService();
+    logger("App mode: " + appMode + "\n\r App state:" + appState);
 
     //------------------ initialize power booster to OFF
     powerBoost = new mraa.Gpio(voltageBoostPin);
@@ -560,26 +618,21 @@ function setupMonitoring() {
     powerBoost.write(0);
 
     touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-
+    
     if (touchSensorWorks()) {
         logger("TOUCH SENSOR OK");
-        //touchSensor.configAN3944();
         initTouchSensor();
-
-        var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
-        i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-        i2c.writeReg(touchThresholdAddress, touchThreshold);
 
         //Pin setup for touch sensor interrupt
         var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
         touchInterruptPin.dir(mraa.DIR_IN);
         setTimeout(function () {
             touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-        }, 500);
+        }, 1000);
 
     }
     else {
-        console.error("NO TOUCH SENSOR");
+        logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
         logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
             function (err) {
                 console.error("Error log failing , critical error");
@@ -589,11 +642,8 @@ function setupMonitoring() {
 
     gyroAccelCompass = new IMUClass.LSM9DS0();
 
-    if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
-        IMUSensorIsDamaged = true;
-        console.error("NO GYROSCOPE");
-    }
-    else {
+    if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
+        logger("TOUCH SENSOR OK");
         gyroAccelCompass.init();                          // Initialize the device with default values
         setupGyroscope();
         setupAccelerometer();
@@ -608,22 +658,22 @@ function setupMonitoring() {
         setTimeout(function () {
             gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
             horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
-            horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
+            moduleTransportationInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
         }, delayBeforeActivatingAllSensors);
     }
+    else {
+        logger(" !!!!!!!!!!!!!!!!!! NO MOTION SENSOR !!!!!!!!!!!!!!!!");
+        IMUSensorIsDamaged = true;
+    }
 
-
-    var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
-    pushButtonLight.dir(mraa.DIR_OUT);
-    if (!(soapSensorIsDamaged || IMUSensorIsDamaged))pushButtonLight.write(1);
-
-    setTimeout(function () {
-        pushButtonLight.write(0);
-    }, 5000);
+    showHardwareStateOnButton();
 
     logger("Starting monitoring app v" + appVersion + "\n\r");
     appState = "active";
 }
+
+
+
 
 
 function touchSensorWorks() {
@@ -694,6 +744,10 @@ function initTouchSensor() {
     touchI2c.writeReg(0x5e, 0x01); //this step is always LAST, only pin 0 is O
 
 
+    var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
+    i2c.frequency(mraa.I2C_FAST);
+    i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
+    i2c.writeReg(touchThresholdAddress, touchThreshold);
 }
 
 
