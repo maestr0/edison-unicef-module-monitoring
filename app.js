@@ -1,6 +1,7 @@
 
 var appVersion = 17;
 var startDate = new Date();
+var lastSleep = new Date();
 
 var numberOfTouchOnSoap = 0;
 var mraa = require('mraa');
@@ -34,9 +35,8 @@ scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
 serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 
-// FIXME: disable dev mode
-// appMode = process.env.NODE_ENV || "development";
-appMode = "development";
+appMode = process.env.NODE_ENV || "development";
+//appMode = "development";
 
 videoDuration = (appMode === "production") ? "40" : "11";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (1000 * 60 * 7) : 1000;
@@ -207,13 +207,7 @@ var recordMovie = function () {
         exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60000}, function (error, stdout, stderr) {
             if (!error) {
                 logger("... archive completed" + stdout);
-
-                exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error, stdout, stderr) {
-                    if (error) {
-                        logger("---- WE CANNOT SLEEP -----");
-                    }
-                });
-
+                goToSleep();
             }
             else {
 
@@ -239,11 +233,10 @@ var recordMovie = function () {
 
 var startCamera = function (){
     if (appState == "disabled") return;
-
-    powerUsbPortOn();
+    setTimeout(powerUsbPortOn, 250);
     alreadyRecordingMovie = true;
     appState = "busy";
-    setTimeout(recordMovie, 3000);
+    setTimeout(recordMovie, 3250);
 }
 
 //---------------------- RUN LOOPS --------------------------
@@ -380,10 +373,20 @@ setInterval(function () {
                 }
             });
     }
-    
+
     moduleisRotation = false ;
 
 }, 100);
+
+
+//------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
+setInterval(function () {
+    var thirtyMinutes =  30 * 60 * 1000 ;
+    if ( new Date().getTime() > (lastSleep.getTime() + thirtyMinutes ) ){
+        goToSleep();
+    }
+    else logger("not time to go to sleep yet");
+},1 * 60 * 1000);
 
 
 function startAccessPoint() {
@@ -448,22 +451,25 @@ function stopAccessPoint(){
 function irqTouchCallback() {
 
     numberOfTouchOnSoap++;
-    //logger("-ISR Touch: " + numberOfTouchOnSoap);
+    lastSleep = new Date();
+    logger("-ISR Touch: " + numberOfTouchOnSoap);
 
 }
 
 function gyroInterruptCallBack() {
-    // Leave this callback empty, only for waking up the device
     moduleisRotation = true ;
-    logger("Rotation detected by ISR !!!!");
+    lastSleep = new Date();
+    logger("ISR Rotation ");
 
 }
 
 function horizontalPositionCallBack() {
-    // Leave this callback empty, only for waking up the device
+
+    lastSleep = new Date();
 }
 
 function moduleTransportationCallBack() {
+    lastSleep = new Date();
     logger("-ISR transportation");
 }
 //----------------- UTILITY FUNCTIONS --------------------------
@@ -618,12 +624,18 @@ function setupMonitoring() {
         logger("TOUCH SENSOR OK");
         initTouchSensor();
 
+
+        //NOTE: this below is turned Off since we are not waking up from touch, only when rotation is right
+        //do we allow touch to work
+
         //Pin setup for touch sensor interrupt
-        var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
-        touchInterruptPin.dir(mraa.DIR_IN);
+       // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
+        //touchInterruptPin.dir(mraa.DIR_IN);
+
+        /*
         setTimeout(function () {
             touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-        }, 1000);
+        }, 1000);*/
 
     }
     else {
@@ -654,6 +666,7 @@ function setupMonitoring() {
             gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
             horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
             moduleTransportationInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
+            setTimeout(goToSleep,100);
         }, delayBeforeActivatingAllSensors);
     }
     else {
@@ -788,5 +801,14 @@ function reboot() {
 function forceReboot() {
     exec("reboot -f", function (out, err, err2) {
         logger("rebooting... " + out + err + err2);
+    });
+}
+
+function goToSleep(){
+    lastSleep = new Date();
+    exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error, stdout, stderr) {
+        if (error) {
+            logger("---- WE CANNOT SLEEP -----");
+        }
     });
 }
