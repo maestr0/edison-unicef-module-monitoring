@@ -80,7 +80,7 @@ var serialPort = new SerialPort(serialPath, {
 });
 
 serialPort.on("open", function () {
-    serialPort.write("Starting monitoring app v" + appVersion + "\n\r", function (err, results) { //Write data
+    serialPort.write("\n\r-----------------------------------------------------------\n\r---------------- Starting monitoring app v" + appVersion + " ----------------\n\r", function (err, results) { //Write data
     });
     if (appState === "initialize") setupMonitoring();
 });
@@ -256,46 +256,19 @@ var powerUsbPortOff = function () {
     powerBoost.write(0);
     logger("... Back to 3.3 v");
 };
-/*
+
+
 setInterval(function () {
     logger("state: " + appState );
-}, 5000);*/
+}, 5000);
 
 
-//------- SOAP TOUCHING
-setInterval(function () {
-
-    rebootIfNeeded();
-
-    if (  (soapHasBeenTouched() || numberOfTouchOnSoap >0 ) && appState != "disabled") {
-
-        if (!alreadyRecordingMovie) {
-            startCamera();
-        }
-
-        logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt", templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n', encoding = 'utf8',
-            function (err) {
-                if (err) {
-                    console.error("Touch failed to record on sdcard");
-                    logError.appendFileSync(ErrorLogFileName, "Touch failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
-                        function (err) {
-                            console.error("all data access failed, critical error");
-                        });
-                }
-            });
-
-
-        numberOfTouchOnSoap = 0;
-
-        //queue.push("button pressed @ " + new Date().getTime());
-    }
-}, 100);
 
 
 //------- WATER CONTAINER IN HORIZONTAL POSITION --------------
 setInterval(function () {
     if (appState != "disabled") {
-        
+
             gyroAccelCompass.update();
 
             var x = new IMUClass.new_floatp();
@@ -303,7 +276,7 @@ setInterval(function () {
             var z = new IMUClass.new_floatp();
             gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
 
-            //logger("counting horizontal : " + durationInHorizontalPosition + " x: " + IMUClass.floatp_value(z));
+            //logger("counting horizontal : " + durationInHorizontalPosition + " z: " + IMUClass.floatp_value(z));
 
             if ( (IMUClass.floatp_value(z) > 0.985) && (IMUClass.floatp_value(z)  < 2.0) && ( IMUClass.floatp_value(x) < 1) && ( IMUClass.floatp_value(y) < 1)){
 
@@ -311,9 +284,8 @@ setInterval(function () {
 
 
                 if (durationInHorizontalPosition === 15) {
-                    //fixme remove comments
-                   // startAccessPoint();
-                   // accesspointTimeoutReboot();
+                    startAccessPoint();
+                    accesspointTimeoutReboot();
                 }
 
             }else {
@@ -325,10 +297,36 @@ setInterval(function () {
 }, 500);
 
 
+// SOAP TOUCH --------------------------
+setInterval( function(){
+    rebootIfNeeded();
 
+    if (  (soapHasBeenTouched() || numberOfTouchOnSoap >0 ) && appState != "disabled") {
+        logger("soap touched");
+        logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt", templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n', encoding = 'utf8',
+            function (err) {
+                if (err) {
+                    console.error("Touch failed to record on sdcard");
+                    logError.appendFileSync(ErrorLogFileName, "Touch failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
+                        function (err) {
+                            console.error("all data access failed, critical error");
+                        });
+                }
+            });
+
+        numberOfTouchOnSoap = 0;
+    }
+
+}, 100);
+
+//------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
 setInterval(function () {
 
+
+    // GYROSCOPIC INFORMATION --------------------------
     if (!moduleisRotation) return;
+
+
     //if ( thereIsARotation()) {
     // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_WHO_AM_I_XM )); // if chip failed return false all the time
     // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G )); // if chip failed return false all the time
@@ -354,21 +352,16 @@ setInterval(function () {
     var gyroZAxis = Math.round(IMUClass.floatp_value(z)) ;
 
 
-    if (!(gyroXAxis >  gyroYAxis ) && !( gyroZAxis >  gyroYAxis )){
+   // if (!(gyroXAxis >  gyroYAxis ) && !( gyroZAxis >  gyroYAxis )){
         logger("Gyroscope:     GX: " + gyroXAxis + " AY: " + gyroYAxis + " AZ: " + gyroZAxis);
 
         if (!alreadyRecordingMovie) {
-            //startCamera();
-
+            startCamera();
         }
-    }
-
-
+    //}
 
     //gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
     //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
-
-
 
     //}
     moduleisRotation = false ;
@@ -414,7 +407,6 @@ function accesspointTimeoutReboot() {
 
     }, delayBeforeAccessPointTimeout);
 }
-
 
 
 function stopAccessPoint(){
@@ -629,7 +621,7 @@ function setupMonitoring() {
     gyroAccelCompass = new IMUClass.LSM9DS0();
 
     if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
-        logger("TOUCH SENSOR OK");
+        logger("MOTION SENSOR OK");
         gyroAccelCompass.init();                          // Initialize the device with default values
         setupGyroscope();
         setupAccelerometer();
@@ -654,7 +646,7 @@ function setupMonitoring() {
 
     showHardwareStateOnButton();
 
-    logger("\n\r-----------------------------------------------------------\n\r---------------- Starting monitoring app v" + appVersion + " ----------------\n\r");
+
     appState = "active";
 }
 
