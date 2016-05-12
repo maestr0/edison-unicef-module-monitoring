@@ -54,9 +54,11 @@ var touchThresholdAddress = 0x41; // address to set the touch threshold,
 var touchThreshold = 255; // lowest sensitivity
 
 var touchDataID = 0;
+var motionDataID = 0 ;
 
 var ErrorLogFileName = moduleDataPath + "/error.log";
 var templateDataLogTouch = serialNumber + ",C,";
+var templateDataLogMotion = serialNumber + ",I,";
 
 var i2c;
 
@@ -358,12 +360,27 @@ setInterval(function () {
         if (!alreadyRecordingMovie) {
             startCamera();
         }
+
     //}
 
     //gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
     //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
 
     //}
+
+    if (alreadyRecordingMovie){
+        logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID ++) + ',' + gyroYAxis + ','+ Date.now() + '\n', encoding = 'utf8',
+            function (err) {
+                if (err) {
+                    console.error("Motion failed to record on sdcard");
+                    logError.appendFileSync(ErrorLogFileName, "Motion failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
+                        function (err) {
+                            console.error("all data access failed, critical error");
+                        });
+                }
+            });
+    }
+    
     moduleisRotation = false ;
 
 }, 100);
