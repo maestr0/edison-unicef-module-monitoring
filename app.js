@@ -99,10 +99,12 @@ var initWebService = function () {
     app = express();
     app.set('port', (process.env.MONITORING_PORT || 3001));
     app.get('/', function (req, res) {
+        winston.info("Monitoring ROOT");
         res.send('Monitoring');
     });
     app.get('/status', function (req, res) {
         appState = "disabled";
+        winston.info("Monitoring STATUS for " + req.query.device);
         res.header('Access-Control-Allow-Origin', '*');
         res.header('Access-Control-Allow-Methods', 'GET');
         res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -134,7 +136,7 @@ var initWebService = function () {
 
 
         appState = "active";
-        winston.info("STATUS for device " + req.query.device + "\n" + sensorsOverallStatus + "\n" + error);
+        winston.info("STATUS for device " + req.query.device + "\n" + sensorsOverallStatus + "\n" + errorStatus);
         res.send({
             "status": sensorsOverallStatus,
             "error": errorStatus
