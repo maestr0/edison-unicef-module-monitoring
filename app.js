@@ -124,12 +124,12 @@ var initWebService = function () {
             case "motion" :
 
                 if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
-                    errorStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
-                    sensorsOverallStatus += "Gyroscope FAIL";
+                    errorStatus += " Gyroscope unreachable. "; // if chip failed return false all the time
+                    sensorsOverallStatus += " Gyroscope FAIL ";
                 }
                 if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_WHO_AM_I_XM) === 255) {
-                    errorStatus += "Accelerometer unreachable. "; // if chip failed return false all the time
-                    sensorsOverallStatus += "Accelerometer FAIL";
+                    errorStatus += " Accelerometer unreachable. "; // if chip failed return false all the time
+                    sensorsOverallStatus += " Accelerometer FAIL ";
                 }
                 break;
         }
