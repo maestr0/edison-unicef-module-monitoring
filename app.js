@@ -114,14 +114,14 @@ var initWebService = function () {
         var errorStatus = "";
 
         switch (req.query.device) {
-            case "motion" :
+            case "touch" :
                 if (!touchSensorWorks()) {
                     errorStatus = "Touch sensor damaged";
                     sensorsOverallStatus = "FAIL";
                 }
                 break;
 
-            case "touch" :
+            case "motion" :
 
                 if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) {
                     errorStatus += "Gyroscope unreachable. "; // if chip failed return false all the time
