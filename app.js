@@ -1,5 +1,4 @@
-
-var appVersion = 17;
+var appVersion = 18;
 var startDate = new Date();
 var lastSleep = new Date();
 
@@ -7,7 +6,7 @@ var numberOfTouchOnSoap = 0;
 var mraa = require('mraa');
 var appState = "initialize";
 
-
+var winston = require('./log.js');
 
 var express = require('express');
 var logFile = require('fs');
@@ -20,8 +19,8 @@ var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using defaul
 var exec = require('child_process').exec;
 
 var alreadyRecordingMovie = false;
-var moduleisRotation = false ;
-var durationInHorizontalPosition = 0 ;
+var moduleisRotation = false;
+var durationInHorizontalPosition = 0;
 
 var capacitiveSensorInterruptPin = 8;
 var voltageBoostPin = 9;
@@ -44,6 +43,7 @@ delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : 
 
 var moduleIsHorizontal = 0;
 var dataFileNamePrefix = generateID();
+winston.info("new file prefix: " + dataFileNamePrefix);
 
 var gyroZaxisTransient = 0x20; //0o00100000 ;/
 var gyroZaxisLatchedHigh = 0x60; //01100000 ;
@@ -54,7 +54,7 @@ var touchThresholdAddress = 0x41; // address to set the touch threshold,
 var touchThreshold = 255; // lowest sensitivity
 
 var touchDataID = 0;
-var motionDataID = 0 ;
+var motionDataID = 0;
 
 var ErrorLogFileName = moduleDataPath + "/error.log";
 var templateDataLogTouch = serialNumber + ",C,";
@@ -68,10 +68,6 @@ var soapSensorIsDamaged = false;
 var IMUSensorIsDamaged = false;
 var gyroAccelCompass; //= new IMUClass.LSM9DS0()  ;
 var app;
-
-
-
-
 
 
 // ONLY INITIALIZATION BEFORE OTHER ELEMENTS
@@ -88,18 +84,18 @@ serialPort.on("open", function () {
 });
 
 serialPort.on("error", function () {
-    console.log("serial port error, closing port... ");
+    winston.error("serial port error, closing port... ");
     if (appState === "initialize") setupMonitoring();
 
 });
 
 serialPort.on("close", function () {
-    console.log("...serial port closed");
+    winston.info("...serial port closed");
     if (appState === "initialize") setupMonitoring();
 });
 
 
-var initWebService = function (){
+var initWebService = function () {
     app = express();
     app.set('port', (process.env.MONITORING_PORT || 3001));
     app.get('/', function (req, res) {
@@ -138,25 +134,23 @@ var initWebService = function (){
 
 
         appState = "active";
-
+        winston.info("STATUS for device " + req.query.device + "\n" + sensorsOverallStatus + "\n" + error);
         res.send({
             "status": sensorsOverallStatus,
             "error": errorStatus
         });
     });
     app.listen(app.get('port'), function () {
-        console.log('Monitoring listening on port ' + app.get('port'));
+        winston.info('Monitoring listening on port ' + app.get('port'));
     });
 }
-
-
 
 
 var c = 0;
 var c2 = 0;
 var queue = [];
 var processLogQueue = function () {
-    console.log("queue processing...");
+    winston.info("queue processing...");
     var topElement = queue.pop();
 
     if (topElement) {
@@ -164,7 +158,7 @@ var processLogQueue = function () {
         //        logFile.appendFile('/home/root/sleep.txt', topElement + '\n', encoding = 'utf8',
         //            function (err) {
         //                if (err) {
-        //                    console.error("shit happened with the file writter");
+        //                    winston.error("shit happened with the file writter");
         //                throw err};
         //
         //                processLogQueue();
@@ -173,14 +167,13 @@ var processLogQueue = function () {
         processLogQueue();
 
     } else {
-        console.log("log queue empty, sleeping for 1s");
+        winston.info("log queue empty, sleeping for 1s");
 
         setTimeout(processLogQueue, 1000);
     }
 
 };
 //setTimeout(processLogQueue, 1000);
-
 
 
 var recordMovie = function () {
@@ -193,9 +186,9 @@ var recordMovie = function () {
     exec(command, {timeout: 60000}, function (error, stdout, stderr) {
 
         if (!error) {
-            logger("image captured successfully");
+            logger("image captured successfully: " + stdout);
         } else {
-            logger(" ERROR: Camera could not record videos" + stderr);
+            logger(" ERROR: Camera could not record videos: " + stderr + "\n" + stdout + "\n" + error);
         }
 
         powerUsbPortOff();
@@ -206,12 +199,11 @@ var recordMovie = function () {
 
         exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60000}, function (error, stdout, stderr) {
             if (!error) {
-                logger("... archive completed" + stdout);
+                logger("... archive completed: " + stdout);
                 goToSleep();
             }
             else {
-
-                logger("ERRO : Archiver failed to archive data" + stderr);
+                logger("ERRO : Archiver failed to archive data: " + stderr + "\n" + stdout + "\n" + error);
             }
 
 
@@ -222,7 +214,7 @@ var recordMovie = function () {
         /*logFile.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
          function (err) {
          if (err) {
-         console.error("shit happened with the file writter");
+         winston.error("shit happened with the file writter");
          throw err;
          }
          });
@@ -231,7 +223,7 @@ var recordMovie = function () {
     });
 };
 
-var startCamera = function (){
+var startCamera = function () {
     if (appState == "disabled") return;
     setTimeout(powerUsbPortOn, 250);
     alreadyRecordingMovie = true;
@@ -254,57 +246,55 @@ var powerUsbPortOff = function () {
 
 
 setInterval(function () {
-    logger("state: " + appState );
-}, 5000);
-
-
+    logger("state: " + appState);
+}, 15000);
 
 
 //------- WATER CONTAINER IN HORIZONTAL POSITION --------------
 setInterval(function () {
     if (appState != "disabled") {
 
-            gyroAccelCompass.update();
+        gyroAccelCompass.update();
 
-            var x = new IMUClass.new_floatp();
-            var y = new IMUClass.new_floatp();
-            var z = new IMUClass.new_floatp();
-            gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
+        var x = new IMUClass.new_floatp();
+        var y = new IMUClass.new_floatp();
+        var z = new IMUClass.new_floatp();
+        gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
 
-            //logger("counting horizontal : " + durationInHorizontalPosition + " z: " + IMUClass.floatp_value(z));
+        //logger("counting horizontal : " + durationInHorizontalPosition + " z: " + IMUClass.floatp_value(z));
 
-            if ( (IMUClass.floatp_value(z) > 0.985) && (IMUClass.floatp_value(z)  < 2.0) && ( IMUClass.floatp_value(x) < 1) && ( IMUClass.floatp_value(y) < 1)){
+        if ((IMUClass.floatp_value(z) > 0.985) && (IMUClass.floatp_value(z) < 2.0) && ( IMUClass.floatp_value(x) < 1) && ( IMUClass.floatp_value(y) < 1)) {
 
-                durationInHorizontalPosition++;
+            durationInHorizontalPosition++;
 
 
-                if (durationInHorizontalPosition === 15) {
-                    startAccessPoint();
-                    accesspointTimeoutReboot();
-                }
-
-            }else {
-                if ( (IMUClass.floatp_value(z) < 0.98) && (durationInHorizontalPosition > 0 )) durationInHorizontalPosition--;
-
+            if (durationInHorizontalPosition === 15) {
+                startAccessPoint();
+                accesspointTimeoutReboot();
             }
+
+        } else {
+            if ((IMUClass.floatp_value(z) < 0.98) && (durationInHorizontalPosition > 0 )) durationInHorizontalPosition--;
+
+        }
 
     }
 }, 500);
 
 
 // SOAP TOUCH --------------------------
-setInterval( function(){
+setInterval(function () {
     rebootIfNeeded();
 
-    if (  (soapHasBeenTouched() || numberOfTouchOnSoap >0 ) && appState != "disabled") {
+    if ((soapHasBeenTouched() || numberOfTouchOnSoap > 0 ) && appState != "disabled") {
         logger("soap touched");
         logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt", templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
-                    console.error("Touch failed to record on sdcard");
+                    winston.error("Touch failed to record on sdcard");
                     logError.appendFileSync(ErrorLogFileName, "Touch failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
                         function (err) {
-                            console.error("all data access failed, critical error");
+                            winston.error("all data access failed, critical error");
                         });
                 }
             });
@@ -326,7 +316,7 @@ setInterval(function () {
     // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_WHO_AM_I_XM )); // if chip failed return false all the time
     // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G )); // if chip failed return false all the time
 
-    //console.log( "Rotation detected");
+    //winston.info( "Rotation detected");
     gyroAccelCompass.update();
 
     var x = new IMUClass.new_floatp();
@@ -342,17 +332,17 @@ setInterval(function () {
 
     gyroAccelCompass.getGyroscope(x, y, z);
 
-    var gyroXAxis = Math.round(IMUClass.floatp_value(x)) ;
-    var gyroYAxis = Math.round(IMUClass.floatp_value(y)) ;
-    var gyroZAxis = Math.round(IMUClass.floatp_value(z)) ;
+    var gyroXAxis = Math.round(IMUClass.floatp_value(x));
+    var gyroYAxis = Math.round(IMUClass.floatp_value(y));
+    var gyroZAxis = Math.round(IMUClass.floatp_value(z));
 
 
-   // if (!(gyroXAxis >  gyroYAxis ) && !( gyroZAxis >  gyroYAxis )){
-        logger("Gyroscope:     GX: " + gyroXAxis + " AY: " + gyroYAxis + " AZ: " + gyroZAxis);
+    // if (!(gyroXAxis >  gyroYAxis ) && !( gyroZAxis >  gyroYAxis )){
+    logger("Gyroscope:     GX: " + gyroXAxis + " AY: " + gyroYAxis + " AZ: " + gyroZAxis);
 
-        if (!alreadyRecordingMovie) {
-            startCamera();
-        }
+    if (!alreadyRecordingMovie) {
+        startCamera();
+    }
 
     //}
 
@@ -361,32 +351,32 @@ setInterval(function () {
 
     //}
 
-    if (alreadyRecordingMovie){
-        logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID ++) + ',' + gyroYAxis + ','+ Date.now() + '\n', encoding = 'utf8',
+    if (alreadyRecordingMovie) {
+        logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
-                    console.error("Motion failed to record on sdcard");
+                    winston.error("Motion failed to record on sdcard");
                     logError.appendFileSync(ErrorLogFileName, "Motion failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
                         function (err) {
-                            console.error("all data access failed, critical error");
+                            winston.error("all data access failed, critical error");
                         });
                 }
             });
     }
 
-    moduleisRotation = false ;
+    moduleisRotation = false;
 
 }, 100);
 
 
 //------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
 setInterval(function () {
-    var thirtyMinutes =  30 * 60 * 1000 ;
-    if ( new Date().getTime() > (lastSleep.getTime() + thirtyMinutes ) ){
+    var thirtyMinutes = 30 * 60 * 1000;
+    if (new Date().getTime() > (lastSleep.getTime() + thirtyMinutes )) {
         goToSleep();
     }
     else logger("not time to go to sleep yet");
-},1 * 60 * 1000);
+}, 1 * 60 * 1000);
 
 
 function startAccessPoint() {
@@ -422,28 +412,26 @@ function accesspointTimeoutReboot() {
                 appState = "active";
             }
 
-            setTimeout(reboot, 5000) //reboot no matter what after AP mode stops
+            setTimeout(reboot, 5000); //reboot no matter what after AP mode stops
         });
 
     }, delayBeforeAccessPointTimeout);
 }
 
 
-function stopAccessPoint(){
+function stopAccessPoint() {
 
     exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
 
         if (error) {
-            logger("Stopping AP didn't work " + error + ' --- ' + stderr);
+            logger("Stopping AP didn't work:\n " + error + '\n' + stderr + "\n" + stdout);
 
         } else {
-            logger("... AP mode OFF" + stdout);
+            logger("... AP mode OFF: " + stdout);
         }
     });
 
 }
-
-
 
 
 //---------------------- IRQ CALLBACK --------------------------
@@ -457,7 +445,7 @@ function irqTouchCallback() {
 }
 
 function gyroInterruptCallBack() {
-    moduleisRotation = true ;
+    moduleisRotation = true;
     lastSleep = new Date();
     logger("ISR Rotation ");
 
@@ -489,7 +477,7 @@ function setupGyroscope() {
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x80);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, 0x20); // 0x25 ); //set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
-    gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x0A); //set minimum rotation duration to trigger interrupt (based on frequency)
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x0A); //set minimum rotation duration to trigger interrupt (based on frequency)
 
 
     //showGyrodebugInfo();
@@ -539,15 +527,15 @@ function thereIsARotation() {
 }
 function showGyrodebugInfo() {
 
-    console.log("Gyro CFG : 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G).toString(16));
-    console.log("Gyro REG1: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG1_G).toString(16));
-    console.log("Gyro REG2: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG2_G).toString(16));
-    console.log("Gyro REG3: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G).toString(16));
-    console.log("Gyro REG4: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG4_G).toString(16));
-    console.log("Gyro REG5: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G).toString(16));
-    console.log("Gyro status" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_STATUS_REG_G).toString(16));
-    console.log("Gyro FIFO . 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_FIFO_CTRL_REG_G).toString(16));
-    console.log("Gyro interrupt source: " + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_SRC_G).toString(16));
+    winston.info("Gyro CFG : 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G).toString(16));
+    winston.info("Gyro REG1: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG1_G).toString(16));
+    winston.info("Gyro REG2: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG2_G).toString(16));
+    winston.info("Gyro REG3: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G).toString(16));
+    winston.info("Gyro REG4: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG4_G).toString(16));
+    winston.info("Gyro REG5: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G).toString(16));
+    winston.info("Gyro status" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_STATUS_REG_G).toString(16));
+    winston.info("Gyro FIFO . 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_FIFO_CTRL_REG_G).toString(16));
+    winston.info("Gyro interrupt source: " + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_SRC_G).toString(16));
 }
 
 // ---- UTILITY FUNCTIONS ----------
@@ -563,7 +551,7 @@ function isEmpty(obj) {
 function logger(msg) {
     serialPort.write(msg + "\n\r", function (err, results) {
     });
-    console.log(msg);
+    winston.info(msg);
 }
 
 // exit on ^C
@@ -571,26 +559,25 @@ process.on('SIGINT', function () {
     sensor = null;
     sensorObj.cleanUp();
     sensorObj = null;
-    console.log("Exiting.");
+    winston.info("Exiting.");
     process.exit(0);
 });
 
 
-
-function showHardwareStateOnButton(){
+function showHardwareStateOnButton() {
     var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
     pushButtonLight.dir(mraa.DIR_OUT);
 
-    var blinkingOn = setInterval( function(){
+    var blinkingOn = setInterval(function () {
         pushButtonLight.write(1);
     }, 200);
 
 
-    var blinkingOff =  setInterval( function(){
+    var blinkingOff = setInterval(function () {
         pushButtonLight.write(0);
     }, 250);
 
-    if ( !(soapSensorIsDamaged || IMUSensorIsDamaged) ) {
+    if (!(soapSensorIsDamaged || IMUSensorIsDamaged)) {
         clearInterval(blinkingOn);
         clearInterval(blinkingOff);
         pushButtonLight.write(1);
@@ -609,7 +596,7 @@ function setupMonitoring() {
 
     var pushButtonLightStyle = 0;
 
-   
+
     initWebService();
     logger("App mode: " + appMode);
 
@@ -619,7 +606,7 @@ function setupMonitoring() {
     powerBoost.write(0);
 
     touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-    
+
     if (touchSensorWorks()) {
         logger("TOUCH SENSOR OK");
         initTouchSensor();
@@ -629,20 +616,20 @@ function setupMonitoring() {
         //do we allow touch to work
 
         //Pin setup for touch sensor interrupt
-       // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
+        // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
         //touchInterruptPin.dir(mraa.DIR_IN);
 
         /*
-        setTimeout(function () {
-            touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-        }, 1000);*/
+         setTimeout(function () {
+         touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
+         }, 1000);*/
 
     }
     else {
         logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
         logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
             function (err) {
-                console.error("Error log failing , critical error");
+                winston.error("Error log failing , critical error");
             });
     }
 
@@ -666,7 +653,7 @@ function setupMonitoring() {
             gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
             horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
             moduleTransportationInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
-            setTimeout(goToSleep,100);
+            setTimeout(goToSleep, 100);
         }, delayBeforeActivatingAllSensors);
     }
     else {
@@ -679,9 +666,6 @@ function setupMonitoring() {
 
     appState = "active";
 }
-
-
-
 
 
 function touchSensorWorks() {
@@ -703,17 +687,17 @@ function initTouchSensor() {
     var touchI2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
     touchI2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
 
-    touchI2c.writeReg(0x5e,0x0); // set all touch pins to 0
+    touchI2c.writeReg(0x5e, 0x0); // set all touch pins to 0
 
-    touchI2c.writeReg(0x2b,0x01); // set baseline data
-    touchI2c.writeReg(0x2c,0x01); // set baseline data
-    touchI2c.writeReg(0x2d,0x0); // set baseline data
-    touchI2c.writeReg(0x2e,0x0); // set baseline data
+    touchI2c.writeReg(0x2b, 0x01); // set baseline data
+    touchI2c.writeReg(0x2c, 0x01); // set baseline data
+    touchI2c.writeReg(0x2d, 0x0); // set baseline data
+    touchI2c.writeReg(0x2e, 0x0); // set baseline data
 
-    touchI2c.writeReg(0x2f,0x01); // set filter data lower than baseline
-    touchI2c.writeReg(0x30,0x01); // set filter data lower than baseline
-    touchI2c.writeReg(0x31,0xff); // set filter data lower than baseline
-    touchI2c.writeReg(0x32,0x02); // set filter data lower than baseline
+    touchI2c.writeReg(0x2f, 0x01); // set filter data lower than baseline
+    touchI2c.writeReg(0x30, 0x01); // set filter data lower than baseline
+    touchI2c.writeReg(0x31, 0xff); // set filter data lower than baseline
+    touchI2c.writeReg(0x32, 0x02); // set filter data lower than baseline
 
     touchI2c.writeReg(0x41, 0x0f); //touch threshold
     touchI2c.writeReg(0x42, 0x0a); //touch threshold
@@ -804,11 +788,11 @@ function forceReboot() {
     });
 }
 
-function goToSleep(){
+function goToSleep() {
     lastSleep = new Date();
     exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error, stdout, stderr) {
         if (error) {
-            logger("---- WE CANNOT SLEEP -----");
+            logger("---- WE CANNOT SLEEP -----\n" + error + "\n" + stdout + "\n" + stderr);
         }
     });
 }
