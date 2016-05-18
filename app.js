@@ -791,6 +791,7 @@ function forceReboot() {
 }
 
 function goToSleep() {
+    logger("Preparing to sleep... ");
     lastSleep = new Date();
     exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error, stdout, stderr) {
         if (error) {
