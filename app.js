@@ -373,7 +373,7 @@ setInterval(function () {
 
 //------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
 setInterval(function () {
-    var thirtyMinutes = 2 * 60 * 1000; //Fixme get this back to 30 * 60 * 1000
+    var thirtyMinutes = 30 * 60 * 1000; 
     if (new Date().getTime() > (lastSleep.getTime() + thirtyMinutes )) {
         goToSleep();
     }
