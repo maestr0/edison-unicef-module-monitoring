@@ -1,4 +1,12 @@
-var appVersion = 18;
+
+// ONLY INITIALIZATION BEFORE OTHER ELEMENTS
+var SerialPort = require("serialport").SerialPort;
+var serialPath = "/dev/ttyMFD2";
+var serialPort = new SerialPort(serialPath, {
+    baudrate: 115200
+});
+
+var appVersion = 19;
 var startDate = new Date();
 var lastSleep = new Date();
 
@@ -24,14 +32,20 @@ winston.add(require('winston-daily-rotate-file'), {
 winston.info("Logging to file " + loggerFilePath);*/
 // -------------------------------------
 
+moduleDataPath = process.env.MODULE_DATA_DIR || "/media/sdcard/data";
+scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
+serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
+rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
+var dataFileNamePrefix = generateID();
 
-var express = require('express');
+//var express = require('express');
 var logFile = require('fs');
 var logError = require('fs');
 
+var logFileStream = logFile.createWriteStream(moduleDataPath + '/' + dataFileNamePrefix + ".txt");
 
 
-var touchSensorDriver = require('jsupm_mpr121');
+var touchSensorDriver = require('jsupm_mpr121'); // GLOBAL variable
 var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using default parameters (bus 1, gyro addr 6b, xm addr 1d)
 var exec = require('child_process').exec;
 
@@ -52,20 +66,16 @@ var gyrocsopeInterrupt ;
 var horizontalPositionInterrupt ;
 
 
-moduleDataPath = process.env.MODULE_DATA_DIR || "/media/sdcard/data";
-scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
-serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
-rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
+
 
 appMode = process.env.NODE_ENV || "development";
 //appMode = "development";
 
 videoDuration = (appMode === "production") ? "40" : "11";
-delayBeforeActivatingAllSensors = (appMode === "production") ? (2 * 60 * 1000) : 1000;
+delayBeforeActivatingAllSensors = (appMode === "production") ? (1 * 30 * 1000) : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : (2 * 60 * 1000);
 
 var moduleIsHorizontal = 0;
-var dataFileNamePrefix = generateID();
 //winston.info("new file prefix: " + dataFileNamePrefix);
 
 var gyroZaxisTransient = 0x20; //0o00100000 ;/
@@ -89,32 +99,24 @@ var powerBoost;
 var touchSensor;
 var soapSensorIsDamaged = false;
 var IMUSensorIsDamaged = false;
-var gyroAccelCompass; //= new IMUClass.LSM9DS0()  ;
+gyroAccelCompass = "not initialized" ; //= new IMUClass.LSM9DS0()  ; //GLOBAL VARIABLE
 var app;
 
 
-// ONLY INITIALIZATION BEFORE OTHER ELEMENTS
-var SerialPort = require("serialport").SerialPort;
-var serialPath = "/dev/ttyMFD2";
-var serialPort = new SerialPort(serialPath, {
-    baudrate: 115200
-});
 
 serialPort.on("open", function () {
     serialPort.write("\n\r-----------------------------------------------------------\n\r---------------- Starting monitoring app v" + appVersion + " ----------------\n\r", function (err, results) { //Write data
     });
-   if (appState === "initialize") setupMonitoring();
 });
 
 serialPort.on("error", function () {
     //winston.error("serial port error, closing port... ");
-    if (appState === "initialize") setupMonitoring();
+
 
 });
 
 serialPort.on("close", function () {
     //winston.info("...serial port closed");
-    if (appState === "initialize") setupMonitoring();
 });
 
 
@@ -307,23 +309,27 @@ setInterval(function () {
 }, 500);
 
 */
+
+
+var soapStatusText = "";
+
 // SOAP TOUCH --------------------------
 setInterval(function () {
     rebootIfNeeded();
+    if ( appState != "active") return;
 
     if ((soapHasBeenTouched() || numberOfTouchOnSoap > 0 ) && appState != "disabled") {
 
-        logger("soap touched");
-        logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt", templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n', encoding = 'utf8',
-            function (err) {
-                if (err) {
-                    //winston.error("Touch failed to record on sdcard");
-                    logError.appendFileSync(ErrorLogFileName, "Touch failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
-                        function (err) {
-                            //winston.error("all data access failed, critical error");
-                        });
-                }
-            });
+        soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n' ;
+
+        logFileStream.write(templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n' );
+
+
+        if (soapStatusText.length > 300) {
+            logger("soap touched recorded");
+            //logFileStream.write(soapStatusText);
+            soapStatusText = "";
+        }
 
         numberOfTouchOnSoap = 0;
     }
@@ -470,23 +476,20 @@ function stopAccessPoint() {
 //---------------------- IRQ CALLBACK --------------------------
 
 function irqTouchCallback() {
-
-    numberOfTouchOnSoap++;
     lastSleep = new Date();
     logger("-ISR Touch: " + numberOfTouchOnSoap);
-
+    if ( appState === "active"  )  numberOfTouchOnSoap++;
 }
 
 function gyroInterruptCallBack() {
-    moduleisRotation = true;
     lastSleep = new Date();
     logger("ISR Rotation ");
-
+    if ( appState === "active"  )  moduleisRotation = true;
 }
 
 function horizontalPositionCallBack() {
-
     lastSleep = new Date();
+    logger("-ISR horizontal");
 }
 
 function moduleTransportationCallBack() {
@@ -584,7 +587,7 @@ function isEmpty(obj) {
 }
 
 function logger(msg) {
-    console.log(msg + "\n");
+    //console.log(msg + "\n");
     serialPort.write(msg + "\n\r", function (err, results) {
     });
 
@@ -593,9 +596,6 @@ function logger(msg) {
 
 // exit on ^C
 process.on('SIGINT', function () {
-    sensor = null;
-    sensorObj.cleanUp();
-    sensorObj = null;
     //winston.info("Exiting.");
     process.exit(0);
 });
@@ -633,85 +633,7 @@ function showHardwareStateOnButton() {
 //-----------------------------------------------------------------------------------------------------------
 function setupMonitoring() {
 
-    var pushButtonLightStyle = 0;
 
-    //initWebService();
-    logger("App mode: " + appMode);
-
-    //------------------ initialize power booster to OFF
-    powerBoost = new mraa.Gpio(voltageBoostPin);
-    powerBoost.dir(mraa.DIR_OUT);
-    powerBoost.write(0);
-
-    touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-
-    if (touchSensorWorks()) {
-        logger("TOUCH SENSOR OK");
-        initTouchSensor();
-
-
-        //NOTE: this below is turned Off since we are not waking up from touch, only when rotation is right
-        //do we allow touch to work
-
-        //Pin setup for touch sensor interrupt
-        // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
-        //touchInterruptPin.dir(mraa.DIR_IN);
-
-
-        // setTimeout(function () {
-        // touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-       //  }, 1000);
-
-    }
-    else {
-        logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
-        logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
-            function (err) {
-                //winston.error("Error log failing , critical error");
-            });
-    }
-
-    /*
-    gyroAccelCompass = new IMUClass.LSM9DS0();
-
-    if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
-        logger("MOTION SENSOR OK");
-        gyroAccelCompass.init();                          // Initialize the device with default values
-        setupGyroscope();
-        setupAccelerometer();
-
-
-        gyrocsopeInterrupt = new mraa.Gpio(GyroscopeInterruptPin);
-        gyrocsopeInterrupt.dir(mraa.DIR_IN);
-        logger("init gyro int ISR");
-
-        horizontalPositionInterrupt = new mraa.Gpio(horizontalPositionInterruptPin);
-        horizontalPositionInterrupt.dir(mraa.DIR_IN);
-        logger("init horizontal int ISR");
-
-        var moduleTransportationInterrupt = new mraa.Gpio(moduleIsBeingTransportedInterruptPin);
-        moduleTransportationInterrupt.dir(mraa.DIR_IN);
-        logger("init IMU int ISR");
-
-        setTimeout(function () {
-            logger("activating ISR...");
-            gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
-            horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
-            moduleTransportationInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
-
-            logger(" ...all ISRs activated");
-            //setTimeout(goToSleep, 100);
-        }, delayBeforeActivatingAllSensors);
-    }
-    else {
-        logger(" !!!!!!!!!!!!!!!!!! NO MOTION SENSOR !!!!!!!!!!!!!!!!");
-        IMUSensorIsDamaged = true;
-    }
-*/
-    showHardwareStateOnButton();
-
-
-    appState = "active";
 }
 
 
@@ -746,33 +668,45 @@ function initTouchSensor() {
     touchI2c.writeReg(0x31, 0xff); // set filter data lower than baseline
     touchI2c.writeReg(0x32, 0x02); // set filter data lower than baseline
 
+
     touchI2c.writeReg(0x41, 0x1f); // ONLY ONE ACTIVE touch threshold
     touchI2c.writeReg(0x42, 0x0f); // ONLY ONE ACTIVE release threshold
 
-    touchI2c.writeReg(0x43, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x43, 0xff); //touch threshold
     touchI2c.writeReg(0x44, 0x0a); //touch threshold
-    touchI2c.writeReg(0x45, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x45, 0xff); //touch threshold
     touchI2c.writeReg(0x46, 0x0a); //touch threshold
-    touchI2c.writeReg(0x47, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x47, 0xff); //touch threshold
     touchI2c.writeReg(0x48, 0x0a); //touch threshold
-    touchI2c.writeReg(0x49, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x49, 0xff); //touch threshold
     touchI2c.writeReg(0x4A, 0x0a); //touch threshold
-    touchI2c.writeReg(0x4B, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x4B, 0xff); //touch threshold
     touchI2c.writeReg(0x4C, 0x0a); //touch threshold
-    touchI2c.writeReg(0x4D, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x4D, 0xff); //touch threshold
     touchI2c.writeReg(0x4E, 0x0a); //touch threshold
-    touchI2c.writeReg(0x4F, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x4F, 0xff); //touch threshold
     touchI2c.writeReg(0x50, 0x0a); //touch threshold
-    touchI2c.writeReg(0x51, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x51, 0xff); //touch threshold
     touchI2c.writeReg(0x52, 0x0a); //touch threshold
-    touchI2c.writeReg(0x53, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x53, 0xff); //touch threshold
     touchI2c.writeReg(0x54, 0x0a); //touch threshold
-    touchI2c.writeReg(0x55, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x55, 0xff); //touch threshold
     touchI2c.writeReg(0x56, 0x0a); //touch threshold
-    touchI2c.writeReg(0x57, 0x0f); //touch threshold
+
+    touchI2c.writeReg(0x57, 0xff); //touch threshold
     touchI2c.writeReg(0x58, 0x0a); //touch threshold
 
-    touchI2c.writeReg(0x5D, 0x04); //filter configuration
+    touchI2c.writeReg(0x5D, 0x24); //filter configuration
 
     touchI2c.writeReg(0x7b, 0x0b); //Autoconfiguration registers
 
@@ -843,3 +777,88 @@ function goToSleep() {
         }
     });
 }
+
+
+// ------------------------------------------------------------
+
+var pushButtonLightStyle = 0;
+
+//initWebService();
+logger("App mode: " + appMode);
+
+//------------------ initialize power booster to OFF
+powerBoost = new mraa.Gpio(voltageBoostPin);
+powerBoost.dir(mraa.DIR_OUT);
+powerBoost.write(0);
+
+touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
+
+if (touchSensorWorks()) {
+    logger("TOUCH SENSOR OK");
+    initTouchSensor();
+
+
+    //NOTE: this below is turned Off since we are not waking up from touch, only when rotation is right
+    //do we allow touch to work
+
+    //Pin setup for touch sensor interrupt
+    // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
+    //touchInterruptPin.dir(mraa.DIR_IN);
+
+
+    // setTimeout(function () {
+    // touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
+    //  }, 1000);
+
+}
+else {
+    logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
+    logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
+        function (err) {
+            //winston.error("Error log failing , critical error");
+        });
+}
+
+
+gyroAccelCompass = new IMUClass.LSM9DS0();
+
+if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
+    logger("MOTION SENSOR OK");
+    gyroAccelCompass.init();                          // Initialize the device with default values
+    setupGyroscope();
+    setupAccelerometer();
+
+
+    gyrocsopeInterrupt = new mraa.Gpio(GyroscopeInterruptPin);
+    gyrocsopeInterrupt.dir(mraa.DIR_IN);
+    logger("init gyro int ISR");
+
+    horizontalPositionInterrupt = new mraa.Gpio(horizontalPositionInterruptPin);
+    horizontalPositionInterrupt.dir(mraa.DIR_IN);
+    logger("init horizontal int ISR");
+
+    var moduleTransportationInterrupt = new mraa.Gpio(moduleIsBeingTransportedInterruptPin);
+    moduleTransportationInterrupt.dir(mraa.DIR_IN);
+    logger("init IMU int ISR");
+
+
+    gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
+    horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
+    moduleTransportationInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
+
+}
+else {
+    logger(" !!!!!!!!!!!!!!!!!! NO MOTION SENSOR !!!!!!!!!!!!!!!!");
+    IMUSensorIsDamaged = true;
+    logError.appendFileSync(ErrorLogFileName, "Motion sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
+        function (err) {
+            //winston.error("Error log failing , critical error");
+        });
+}
+
+showHardwareStateOnButton();
+
+setTimeout(function(){
+    appState = "active";
+}, delayBeforeActivatingAllSensors );
+
