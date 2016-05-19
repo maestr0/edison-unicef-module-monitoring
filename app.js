@@ -3,15 +3,32 @@ var startDate = new Date();
 var lastSleep = new Date();
 
 var numberOfTouchOnSoap = 0;
+
 var mraa = require('mraa');
+
 var appState = "initialize";
 
-var winston = require('./log.js');
+
+// -------------------------------------
+/*fs = require('fs');
+//winston = require('./log.js');
+winston = require('winston');
+var rebootCount = (process.env.REBOOT_COUNT || "RC");
+var loggerFilePath = (process.env.MODULE_PACKAGES_DIR || "/node_app_slot") + "/logs/" + rebootCount + "_monitoring.log";
+
+winston.add(require('winston-daily-rotate-file'), {
+    filename: loggerFilePath,
+    handleExceptions: true,
+    humanReadableUnhandledException: true
+});
+winston.info("Logging to file " + loggerFilePath);*/
+// -------------------------------------
+
 
 var express = require('express');
 var logFile = require('fs');
 var logError = require('fs');
-var fs = require('fs');
+
 
 
 var touchSensorDriver = require('jsupm_mpr121');
@@ -27,7 +44,13 @@ var voltageBoostPin = 9;
 var moduleIsBeingTransportedInterruptPin = 10;
 var horizontalPositionInterruptPin = 11;
 var GyroscopeInterruptPin = 12;
+
 var pushButtonLightPin = 13;
+var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
+
+var gyrocsopeInterrupt ;
+var horizontalPositionInterrupt ;
+
 
 moduleDataPath = process.env.MODULE_DATA_DIR || "/media/sdcard/data";
 scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
@@ -38,12 +61,12 @@ appMode = process.env.NODE_ENV || "development";
 //appMode = "development";
 
 videoDuration = (appMode === "production") ? "40" : "11";
-delayBeforeActivatingAllSensors = (appMode === "production") ? (1000 * 60 * 7) : 1000;
+delayBeforeActivatingAllSensors = (appMode === "production") ? (2 * 60 * 1000) : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : (2 * 60 * 1000);
 
 var moduleIsHorizontal = 0;
 var dataFileNamePrefix = generateID();
-winston.info("new file prefix: " + dataFileNamePrefix);
+//winston.info("new file prefix: " + dataFileNamePrefix);
 
 var gyroZaxisTransient = 0x20; //0o00100000 ;/
 var gyroZaxisLatchedHigh = 0x60; //01100000 ;
@@ -80,17 +103,17 @@ var serialPort = new SerialPort(serialPath, {
 serialPort.on("open", function () {
     serialPort.write("\n\r-----------------------------------------------------------\n\r---------------- Starting monitoring app v" + appVersion + " ----------------\n\r", function (err, results) { //Write data
     });
-    if (appState === "initialize") setupMonitoring();
+   if (appState === "initialize") setupMonitoring();
 });
 
 serialPort.on("error", function () {
-    winston.error("serial port error, closing port... ");
+    //winston.error("serial port error, closing port... ");
     if (appState === "initialize") setupMonitoring();
 
 });
 
 serialPort.on("close", function () {
-    winston.info("...serial port closed");
+    //winston.info("...serial port closed");
     if (appState === "initialize") setupMonitoring();
 });
 
@@ -99,12 +122,12 @@ var initWebService = function () {
     app = express();
     app.set('port', (process.env.MONITORING_PORT || 3001));
     app.get('/', function (req, res) {
-        winston.info("Monitoring ROOT");
+        //winston.info("Monitoring ROOT");
         res.send('Monitoring');
     });
     app.get('/status', function (req, res) {
         appState = "disabled";
-        winston.info("Monitoring STATUS for " + req.query.device);
+        //winston.info("Monitoring STATUS for " + req.query.device);
         res.header('Access-Control-Allow-Origin', '*');
         res.header('Access-Control-Allow-Methods', 'GET');
         res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -136,14 +159,14 @@ var initWebService = function () {
 
 
         appState = "active";
-        winston.info("STATUS for device " + req.query.device + "\n" + sensorsOverallStatus + "\n" + errorStatus);
+        //winston.info("STATUS for device " + req.query.device + "\n" + sensorsOverallStatus + "\n" + errorStatus);
         res.send({
             "status": sensorsOverallStatus,
             "error": errorStatus
         });
     });
     app.listen(app.get('port'), function () {
-        winston.info('Monitoring listening on port ' + app.get('port'));
+        //winston.info('Monitoring listening on port ' + app.get('port'));
     });
 }
 
@@ -152,7 +175,7 @@ var c = 0;
 var c2 = 0;
 var queue = [];
 var processLogQueue = function () {
-    winston.info("queue processing...");
+    //winston.info("queue processing...");
     var topElement = queue.pop();
 
     if (topElement) {
@@ -169,7 +192,7 @@ var processLogQueue = function () {
         processLogQueue();
 
     } else {
-        winston.info("log queue empty, sleeping for 1s");
+        //winston.info("log queue empty, sleeping for 1s");
 
         setTimeout(processLogQueue, 1000);
     }
@@ -251,7 +274,7 @@ setInterval(function () {
     logger("state: " + appState);
 }, 15000);
 
-
+/*
 //------- WATER CONTAINER IN HORIZONTAL POSITION --------------
 setInterval(function () {
     if (appState != "disabled") {
@@ -283,20 +306,21 @@ setInterval(function () {
     }
 }, 500);
 
-
+*/
 // SOAP TOUCH --------------------------
 setInterval(function () {
     rebootIfNeeded();
 
     if ((soapHasBeenTouched() || numberOfTouchOnSoap > 0 ) && appState != "disabled") {
+
         logger("soap touched");
         logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt", templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
-                    winston.error("Touch failed to record on sdcard");
+                    //winston.error("Touch failed to record on sdcard");
                     logError.appendFileSync(ErrorLogFileName, "Touch failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
                         function (err) {
-                            winston.error("all data access failed, critical error");
+                            //winston.error("all data access failed, critical error");
                         });
                 }
             });
@@ -304,8 +328,12 @@ setInterval(function () {
         numberOfTouchOnSoap = 0;
     }
 
+
 }, 100);
 
+
+
+/*
 //------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
 setInterval(function () {
 
@@ -373,7 +401,7 @@ setInterval(function () {
 
 //------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
 setInterval(function () {
-    var thirtyMinutes = 30 * 60 * 1000; 
+    var thirtyMinutes = 30 * 60 * 1000;
     if (new Date().getTime() > (lastSleep.getTime() + thirtyMinutes )) {
         goToSleep();
     }
@@ -398,6 +426,9 @@ function startAccessPoint() {
     });
 
 }
+
+*/
+
 
 function accesspointTimeoutReboot() {
     setTimeout(function () {
@@ -468,6 +499,7 @@ function soapHasBeenTouched() {
     if (soapSensorIsDamaged) return false;
     touchSensor.readButtons();
     var isTouched = touchSensor.m_buttonStates & 1;
+
     return (isTouched);
 }
 
@@ -529,7 +561,7 @@ function thereIsARotation() {
 }
 function showGyrodebugInfo() {
 
-    winston.info("Gyro CFG : 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G).toString(16));
+    /*winston.info("Gyro CFG : 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G).toString(16));
     winston.info("Gyro REG1: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG1_G).toString(16));
     winston.info("Gyro REG2: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG2_G).toString(16));
     winston.info("Gyro REG3: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G).toString(16));
@@ -538,6 +570,7 @@ function showGyrodebugInfo() {
     winston.info("Gyro status" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_STATUS_REG_G).toString(16));
     winston.info("Gyro FIFO . 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_FIFO_CTRL_REG_G).toString(16));
     winston.info("Gyro interrupt source: " + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_SRC_G).toString(16));
+    */
 }
 
 // ---- UTILITY FUNCTIONS ----------
@@ -551,9 +584,11 @@ function isEmpty(obj) {
 }
 
 function logger(msg) {
+    console.log(msg + "\n");
     serialPort.write(msg + "\n\r", function (err, results) {
     });
-    winston.info(msg);
+
+    //winston.info(msg);
 }
 
 // exit on ^C
@@ -561,13 +596,13 @@ process.on('SIGINT', function () {
     sensor = null;
     sensorObj.cleanUp();
     sensorObj = null;
-    winston.info("Exiting.");
+    //winston.info("Exiting.");
     process.exit(0);
 });
 
 
 function showHardwareStateOnButton() {
-    var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
+
     pushButtonLight.dir(mraa.DIR_OUT);
 
     var blinkingOn = setInterval(function () {
@@ -585,9 +620,11 @@ function showHardwareStateOnButton() {
         pushButtonLight.write(1);
     }
 
-
+    logger("Push Button about turns ON");
     setTimeout(function () {
         pushButtonLight.write(0);
+        logger("Push Button IS OFF");
+
     }, 8000);
 
 
@@ -598,8 +635,7 @@ function setupMonitoring() {
 
     var pushButtonLightStyle = 0;
 
-
-    initWebService();
+    //initWebService();
     logger("App mode: " + appMode);
 
     //------------------ initialize power booster to OFF
@@ -621,21 +657,21 @@ function setupMonitoring() {
         // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
         //touchInterruptPin.dir(mraa.DIR_IN);
 
-        /*
-         setTimeout(function () {
-         touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-         }, 1000);*/
+
+        // setTimeout(function () {
+        // touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
+       //  }, 1000);
 
     }
     else {
         logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
         logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
             function (err) {
-                winston.error("Error log failing , critical error");
+                //winston.error("Error log failing , critical error");
             });
     }
 
-
+    /*
     gyroAccelCompass = new IMUClass.LSM9DS0();
 
     if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
@@ -644,25 +680,34 @@ function setupMonitoring() {
         setupGyroscope();
         setupAccelerometer();
 
-        var gyrocsopeInterrupt = new mraa.Gpio(GyroscopeInterruptPin);
+
+        gyrocsopeInterrupt = new mraa.Gpio(GyroscopeInterruptPin);
         gyrocsopeInterrupt.dir(mraa.DIR_IN);
-        var horizontalPositionInterrupt = new mraa.Gpio(horizontalPositionInterruptPin);
+        logger("init gyro int ISR");
+
+        horizontalPositionInterrupt = new mraa.Gpio(horizontalPositionInterruptPin);
         horizontalPositionInterrupt.dir(mraa.DIR_IN);
+        logger("init horizontal int ISR");
+
         var moduleTransportationInterrupt = new mraa.Gpio(moduleIsBeingTransportedInterruptPin);
-        horizontalPositionInterrupt.dir(mraa.DIR_IN);
+        moduleTransportationInterrupt.dir(mraa.DIR_IN);
+        logger("init IMU int ISR");
 
         setTimeout(function () {
+            logger("activating ISR...");
             gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
             horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
             moduleTransportationInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
-            setTimeout(goToSleep, 100);
+
+            logger(" ...all ISRs activated");
+            //setTimeout(goToSleep, 100);
         }, delayBeforeActivatingAllSensors);
     }
     else {
         logger(" !!!!!!!!!!!!!!!!!! NO MOTION SENSOR !!!!!!!!!!!!!!!!");
         IMUSensorIsDamaged = true;
     }
-
+*/
     showHardwareStateOnButton();
 
 
@@ -701,8 +746,8 @@ function initTouchSensor() {
     touchI2c.writeReg(0x31, 0xff); // set filter data lower than baseline
     touchI2c.writeReg(0x32, 0x02); // set filter data lower than baseline
 
-    touchI2c.writeReg(0x41, 0x0f); //touch threshold
-    touchI2c.writeReg(0x42, 0x0a); //touch threshold
+    touchI2c.writeReg(0x41, 0x1f); // ONLY ONE ACTIVE touch threshold
+    touchI2c.writeReg(0x42, 0x0f); // ONLY ONE ACTIVE release threshold
 
     touchI2c.writeReg(0x43, 0x0f); //touch threshold
     touchI2c.writeReg(0x44, 0x0a); //touch threshold
@@ -735,13 +780,12 @@ function initTouchSensor() {
     touchI2c.writeReg(0x7e, 0x65); //Autoconfiguration registers
     touchI2c.writeReg(0x7f, 0x8c); //Autoconfiguration registers
 
+
+    //touchI2c.writeReg(touchThresholdAddress, 127); //touchThreshold);
+
     touchI2c.writeReg(0x5e, 0x01); //this step is always LAST, only pin 0 is O
 
 
-    var i2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
-    i2c.frequency(mraa.I2C_FAST);
-    i2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-    i2c.writeReg(touchThresholdAddress, touchThreshold);
 }
 
 
