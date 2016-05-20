@@ -72,7 +72,7 @@ appMode = process.env.NODE_ENV || "development";
 //appMode = "development";
 
 videoDuration = (appMode === "production") ? "40" : "11";
-delayBeforeActivatingAllSensors = (appMode === "production") ? (1 * 30 * 1000) : 1000;
+delayBeforeActivatingAllSensors = (appMode === "production") ? (1 * 5 * 1000) : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : (2 * 60 * 1000);
 
 var moduleIsHorizontal = 0;
@@ -273,7 +273,8 @@ var powerUsbPortOff = function () {
 
 
 setInterval(function () {
-    logger("state: " + appState);
+    currentTime = new Date();
+    logger("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds());
 }, 15000);
 
 /*
@@ -312,22 +313,22 @@ setInterval(function () {
 
 
 var soapStatusText = "";
+//var
 
 // SOAP TOUCH --------------------------
 setInterval(function () {
     rebootIfNeeded();
+
     if ( appState != "active") return;
 
     if ((soapHasBeenTouched() || numberOfTouchOnSoap > 0 ) && appState != "disabled") {
 
         soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n' ;
+        if (soapStatusText.length)
 
-        logFileStream.write(templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n' );
-
-
-        if (soapStatusText.length > 300) {
-            logger("soap touched recorded");
-            //logFileStream.write(soapStatusText);
+        if (soapStatusText.length > 1024) {
+            logger("soap touched recorded at " +new Date().getSeconds());
+            logFileStream.write(soapStatusText);
             soapStatusText = "";
         }
 
@@ -587,7 +588,7 @@ function isEmpty(obj) {
 }
 
 function logger(msg) {
-    //console.log(msg + "\n");
+    console.log(msg + "\n");
     serialPort.write(msg + "\n\r", function (err, results) {
     });
 
@@ -670,7 +671,7 @@ function initTouchSensor() {
 
 
     touchI2c.writeReg(0x41, 0x1f); // ONLY ONE ACTIVE touch threshold
-    touchI2c.writeReg(0x42, 0x0f); // ONLY ONE ACTIVE release threshold
+    touchI2c.writeReg(0x42, 0x1a); // ONLY ONE ACTIVE release threshold
 
 
     touchI2c.writeReg(0x43, 0xff); //touch threshold
@@ -708,17 +709,15 @@ function initTouchSensor() {
 
     touchI2c.writeReg(0x5D, 0x24); //filter configuration
 
-    touchI2c.writeReg(0x7b, 0x0b); //Autoconfiguration registers
+    touchI2c.writeReg(0x7b, 0x0B); //Autoconfiguration ON (default values)
 
-    touchI2c.writeReg(0x7d, 0x9c); //Autoconfiguration registers
-    touchI2c.writeReg(0x7e, 0x65); //Autoconfiguration registers
-    touchI2c.writeReg(0x7f, 0x8c); //Autoconfiguration registers
-
-
-    //touchI2c.writeReg(touchThresholdAddress, 127); //touchThreshold);
+    touchI2c.writeReg(0x7d, 0xC9); //Autoconfiguration registers set for 3.3v
+    touchI2c.writeReg(0x7e, 0x83); //Autoconfiguration registers set for 3.3v
+    touchI2c.writeReg(0x7f, 0xB5); //Autoconfiguration registers set for 3.3v
 
     touchI2c.writeReg(0x5e, 0x01); //this step is always LAST, only pin 0 is O
 
+    logger("Flag register says: 0x" + touchI2c.readReg(0x02).toString(16));
 
 }
 
