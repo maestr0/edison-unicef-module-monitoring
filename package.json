@@ -1,6 +1,7 @@
 {
   "name": "mpr-121-edison",
   "description": "",
+  "private": true,
   "version": "0.0.0",
   "main": "app.js",
   "engines": {
