@@ -6,11 +6,10 @@ var serialPort = new SerialPort(serialPath, {
     baudrate: 115200
 });
 
-var appVersion = 19;
+var appVersion = 20;
 var startDate = new Date();
 var lastSleep = new Date();
 
-var numberOfTouchOnSoap = 0;
 
 var mraa = require('mraa');
 
@@ -42,7 +41,9 @@ var dataFileNamePrefix = generateID();
 var logFile = require('fs');
 var logError = require('fs');
 
-var logFileStream = logFile.createWriteStream(moduleDataPath + '/' + dataFileNamePrefix + ".txt");
+//var logFileStream = logFile.createWriteStream(moduleDataPath + '/' + dataFileNamePrefix + ".txt");
+
+
 
 
 var touchSensorDriver = require('jsupm_mpr121'); // GLOBAL variable
@@ -313,7 +314,7 @@ setInterval(function () {
 
 
 var soapStatusText = "";
-//var
+var timeWithUnsavedTouch = 0;
 
 // SOAP TOUCH --------------------------
 setInterval(function () {
@@ -321,22 +322,33 @@ setInterval(function () {
 
     if ( appState != "active") return;
 
-    if ((soapHasBeenTouched() || numberOfTouchOnSoap > 0 ) && appState != "disabled") {
-
+    if ((soapHasBeenTouched()) && appState != "disabled") {
         soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n' ;
-        if (soapStatusText.length)
-
-        if (soapStatusText.length > 1024) {
-            logger("soap touched recorded at " +new Date().getSeconds());
-            logFileStream.write(soapStatusText);
-            soapStatusText = "";
-        }
-
-        numberOfTouchOnSoap = 0;
+        if (soapStatusText.length > 1024) saveSoapTouches();
     }
+    else if (soapStatusText.length >0) timeWithUnsavedTouch++;
+
+    if (timeWithUnsavedTouch > 20) saveSoapTouches();
 
 
 }, 100);
+
+
+
+
+
+function saveSoapTouches(){
+    logger("soap touched recorded at " +new Date().getSeconds());
+    //logFileStream.write(soapStatusText);
+    logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt",soapStatusText, function(error){
+        if(error){
+            logger("writing to SDcard impossible, critical error");
+        }
+    }) ;
+    soapStatusText = "";
+    timeWithUnsavedTouch = 0;
+}
+
 
 
 
@@ -478,8 +490,6 @@ function stopAccessPoint() {
 
 function irqTouchCallback() {
     lastSleep = new Date();
-    logger("-ISR Touch: " + numberOfTouchOnSoap);
-    if ( appState === "active"  )  numberOfTouchOnSoap++;
 }
 
 function gyroInterruptCallBack() {
