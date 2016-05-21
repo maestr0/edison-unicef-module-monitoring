@@ -1,3 +1,5 @@
+var SegfaultHandler = require('segfault-handler');
+SegfaultHandler.registerHandler("crash.log");
 
 // ONLY INITIALIZATION BEFORE OTHER ELEMENTS
 var SerialPort = require("serialport").SerialPort;
@@ -6,7 +8,7 @@ var serialPort = new SerialPort(serialPath, {
     baudrate: 115200
 });
 
-var appVersion = 20;
+var appVersion = 22;
 var startDate = new Date();
 var lastSleep = new Date();
 
@@ -38,10 +40,10 @@ rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 var dataFileNamePrefix = generateID();
 
 //var express = require('express');
-var logFile = require('fs');
-var logError = require('fs');
+var sdCard = require('fs');
 
-//var logFileStream = logFile.createWriteStream(moduleDataPath + '/' + dataFileNamePrefix + ".txt");
+
+
 
 
 
@@ -183,7 +185,7 @@ var processLogQueue = function () {
 
     if (topElement) {
 
-        //        logFile.appendFile('/home/root/sleep.txt', topElement + '\n', encoding = 'utf8',
+        //        sdCard.appendFile('/home/root/sleep.txt', topElement + '\n', encoding = 'utf8',
         //            function (err) {
         //                if (err) {
         //                    winston.error("shit happened with the file writter");
@@ -239,7 +241,7 @@ var recordMovie = function () {
 
         alreadyRecordingMovie = false;
 
-        /*logFile.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
+        /*sdCard.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
          function (err) {
          if (err) {
          winston.error("shit happened with the file writter");
@@ -340,11 +342,22 @@ setInterval(function () {
 function saveSoapTouches(){
     logger("soap touched recorded at " +new Date().getSeconds());
     //logFileStream.write(soapStatusText);
-    logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt",soapStatusText, function(error){
-        if(error){
-            logger("writing to SDcard impossible, critical error");
+    var logFileStream = sdCard.createWriteStream(moduleDataPath + '/' + dataFileNamePrefix + ".txt", {
+            flags: 'a',
+            defaultEncoding: 'utf8',
+            fd: null,
+            mode: 0x666,
+            autoClose: true
         }
-    }) ;
+    );
+    logFileStream.on('open', function(){
+        logFileStream.write(soapStatusText, function(){
+            logFileStream.end();    
+        });
+        
+    });
+    
+    
     soapStatusText = "";
     timeWithUnsavedTouch = 0;
 }
@@ -401,7 +414,7 @@ setInterval(function () {
     //}
 
     if (alreadyRecordingMovie) {
-        logFile.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', encoding = 'utf8',
+ sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
                     winston.error("Motion failed to record on sdcard");
@@ -599,8 +612,8 @@ function isEmpty(obj) {
 
 function logger(msg) {
     console.log(msg + "\n");
-    serialPort.write(msg + "\n\r", function (err, results) {
-    });
+    /*serialPort.write(msg + "\n\r", function (err, results) {
+    });*/
 
     //winston.info(msg);
 }
@@ -727,7 +740,6 @@ function initTouchSensor() {
 
     touchI2c.writeReg(0x5e, 0x01); //this step is always LAST, only pin 0 is O
 
-    logger("Flag register says: 0x" + touchI2c.readReg(0x02).toString(16));
 
 }
 
