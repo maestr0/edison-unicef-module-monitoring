@@ -275,68 +275,67 @@ var powerUsbPortOff = function () {
 };
 
 
-setInterval(function () {
-    currentTime = new Date();
-    logger("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds());
-}, 15000);
-
-/*
-//------- WATER CONTAINER IN HORIZONTAL POSITION --------------
-setInterval(function () {
-    if (appState != "disabled") {
-
-        gyroAccelCompass.update();
-
-        var x = new IMUClass.new_floatp();
-        var y = new IMUClass.new_floatp();
-        var z = new IMUClass.new_floatp();
-        gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
-
-        //logger("counting horizontal : " + durationInHorizontalPosition + " z: " + IMUClass.floatp_value(z));
-
-        if ((IMUClass.floatp_value(z) > 0.985) && (IMUClass.floatp_value(z) < 2.0) && ( IMUClass.floatp_value(x) < 1) && ( IMUClass.floatp_value(y) < 1)) {
-
-            durationInHorizontalPosition++;
-
-
-            if (durationInHorizontalPosition === 15) {
-                startAccessPoint();
-                accesspointTimeoutReboot();
-            }
-
-        } else {
-            if ((IMUClass.floatp_value(z) < 0.98) && (durationInHorizontalPosition > 0 )) durationInHorizontalPosition--;
-
-        }
-
-    }
-}, 500);
-
-*/
-
 
 var soapStatusText = "";
 var timeWithUnsavedTouch = 0;
+var systemRefreshFrequency = 100; //ms
+var appStateCountdown = 15 *  (1000/systemRefreshFrequency);
+var horizontalPositionCheckCountDown = 0.5 * (1000/systemRefreshFrequency);
 
-// SOAP TOUCH --------------------------
+// --------------------------
 setInterval(function () {
+
     rebootIfNeeded();
 
+    if ( --appStateCountdown === 0) showAppState();
     if ( appState != "active") return;
+    if ( --horizontalPositionCheckCountDown === 0 ) checkHorizontalPosition();
 
-    if ((soapHasBeenTouched()) && appState != "disabled") {
+    checkSoapTouches();
+
+
+
+}, systemRefreshFrequency);
+
+
+
+function checkHorizontalPosition(){
+    gyroAccelCompass.update();
+
+    var x = new IMUClass.new_floatp();
+    var y = new IMUClass.new_floatp();
+    var z = new IMUClass.new_floatp();
+    gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
+
+
+    if ((IMUClass.floatp_value(z) > 0.985) && (IMUClass.floatp_value(z) < 2.0) && ( IMUClass.floatp_value(x) < 1) && ( IMUClass.floatp_value(y) < 1)) {
+        durationInHorizontalPosition++;
+        if (durationInHorizontalPosition === 15) {
+            startAccessPoint();
+            accesspointTimeoutReboot();
+        }
+    } else {
+        if ((IMUClass.floatp_value(z) < 0.98) && (durationInHorizontalPosition > 0 )) durationInHorizontalPosition--;
+    }
+    horizontalPositionCheckCountDown =  0.5 * (1000/systemRefreshFrequency);
+}
+
+
+function checkSoapTouches() {
+    if (soapHasBeenTouched()) {
         soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n' ;
         if (soapStatusText.length > 1024) saveSoapTouches();
     }
     else if (soapStatusText.length >0) timeWithUnsavedTouch++;
-
     if (timeWithUnsavedTouch > 20) saveSoapTouches();
+}
 
 
-}, 100);
-
-
-
+function showAppState(){
+    currentTime = new Date();
+    logger("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds());
+    appStateCountdown = 15 *  (1000/systemRefreshFrequency);
+}
 
 
 function saveSoapTouches(){
@@ -613,7 +612,9 @@ function isEmpty(obj) {
 function logger(msg) {
     console.log(msg + "\n");
     /*serialPort.write(msg + "\n\r", function (err, results) {
-    });*/
+    });
+    serialPort.drain();*/
+
 
     //winston.info(msg);
 }
