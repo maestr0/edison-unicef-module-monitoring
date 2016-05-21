@@ -45,9 +45,6 @@ var sdCard = require('fs');
 
 
 
-
-
-
 var touchSensorDriver = require('jsupm_mpr121'); // GLOBAL variable
 var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using default parameters (bus 1, gyro addr 6b, xm addr 1d)
 var exec = require('child_process').exec;
@@ -67,9 +64,6 @@ var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
 
 var gyrocsopeInterrupt ;
 var horizontalPositionInterrupt ;
-
-
-
 
 appMode = process.env.NODE_ENV || "development";
 //appMode = "development";
@@ -96,8 +90,6 @@ var ErrorLogFileName = moduleDataPath + "/error.log";
 var templateDataLogTouch = serialNumber + ",C,";
 var templateDataLogMotion = serialNumber + ",I,";
 
-var i2c;
-
 var powerBoost;
 var touchSensor;
 var soapSensorIsDamaged = false;
@@ -105,22 +97,37 @@ var IMUSensorIsDamaged = false;
 gyroAccelCompass = "not initialized" ; //= new IMUClass.LSM9DS0()  ; //GLOBAL VARIABLE
 var app;
 
+var soapStatusText = "";
+var timeWithUnsavedTouch = 0;
+var systemRefreshFrequency = 100; //ms
 
+var appStateCountdown = 15 *  (1000/systemRefreshFrequency);
+var horizontalPositionCheckCountdown = 0.5 * (1000/systemRefreshFrequency);
+var sleepModeCheckCountdown = 60 * (1000/systemRefreshFrequency);
 
-serialPort.on("open", function () {
-    serialPort.write("\n\r-----------------------------------------------------------\n\r---------------- Starting monitoring app v" + appVersion + " ----------------\n\r", function (err, results) { //Write data
-    });
-});
+var xAcceleroValue = new IMUClass.new_floatp();
+var yAcceleroValue = new IMUClass.new_floatp();
+var zAcceleroValue = new IMUClass.new_floatp();
 
-serialPort.on("error", function () {
-    //winston.error("serial port error, closing port... ");
+// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+setInterval(function () {
 
+    rebootIfNeeded();
 
-});
+    if ( --appStateCountdown === 0) showAppState();
+    if ( appState != "active") return;
+    if ( --horizontalPositionCheckCountdown === 0 ) checkHorizontalPosition();
 
-serialPort.on("close", function () {
-    //winston.info("...serial port closed");
-});
+    checkSoapTouches();
+    //checkGyroscope();
+
+    if (--sleepModeCheckCountdown === 0 ) checkIfNeedsToSleep();
+
+}, systemRefreshFrequency);
+// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+
 
 
 var initWebService = function () {
@@ -175,36 +182,19 @@ var initWebService = function () {
     });
 }
 
+serialPort.on("open", function () {
+    serialPort.write("\n\r-----------------------------------------------------------\n\r---------------- Starting monitoring app v" + appVersion + " ----------------\n\r", function (err, results) { //Write data
+    });
+});
 
-var c = 0;
-var c2 = 0;
-var queue = [];
-var processLogQueue = function () {
-    //winston.info("queue processing...");
-    var topElement = queue.pop();
+serialPort.on("error", function () {
+    console.log("--SERIAL PORT ENCOUNTERED AN ERROR--");
 
-    if (topElement) {
+});
 
-        //        sdCard.appendFile('/home/root/sleep.txt', topElement + '\n', encoding = 'utf8',
-        //            function (err) {
-        //                if (err) {
-        //                    winston.error("shit happened with the file writter");
-        //                throw err};
-        //
-        //                processLogQueue();
-        //            });
-
-        processLogQueue();
-
-    } else {
-        //winston.info("log queue empty, sleeping for 1s");
-
-        setTimeout(processLogQueue, 1000);
-    }
-
-};
-//setTimeout(processLogQueue, 1000);
-
+serialPort.on("close", function () {
+    console.log("...serial port closed");
+});
 
 var recordMovie = function () {
 
@@ -261,7 +251,6 @@ var startCamera = function () {
     setTimeout(recordMovie, 3250);
 }
 
-//---------------------- RUN LOOPS --------------------------
 var powerUsbPortOn = function () {
     logger("about to set 1 on POWER BOOST pin");
     powerBoost.write(1);
@@ -274,62 +263,34 @@ var powerUsbPortOff = function () {
     logger("... Back to 3.3 v");
 };
 
-
-
-var soapStatusText = "";
-var timeWithUnsavedTouch = 0;
-var systemRefreshFrequency = 100; //ms
-var appStateCountdown = 15 *  (1000/systemRefreshFrequency);
-var horizontalPositionCheckCountDown = 0.5 * (1000/systemRefreshFrequency);
-
-// --------------------------
-setInterval(function () {
-
-    rebootIfNeeded();
-
-    if ( --appStateCountdown === 0) showAppState();
-    if ( appState != "active") return;
-    if ( --horizontalPositionCheckCountDown === 0 ) checkHorizontalPosition();
-
-    checkSoapTouches();
-
-
-
-}, systemRefreshFrequency);
-
-
-
 function checkHorizontalPosition(){
-    gyroAccelCompass.update();
 
-    var x = new IMUClass.new_floatp();
-    var y = new IMUClass.new_floatp();
-    var z = new IMUClass.new_floatp();
-    gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
+    gyroAccelCompass.updateAccelerometer();
+    gyroAccelCompass.getAccelerometer(xAcceleroValue , yAcceleroValue , zAcceleroValue); // for horizontal detection
+    var zAxis = IMUClass.floatp_value(zAcceleroValue);
 
-
-    if ((IMUClass.floatp_value(z) > 0.985) && (IMUClass.floatp_value(z) < 2.0) && ( IMUClass.floatp_value(x) < 1) && ( IMUClass.floatp_value(y) < 1)) {
+    if ((zAxis > 0.985) && (zAxis < 2.0) && ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)) {
         durationInHorizontalPosition++;
+        logger("module is horizontal");
         if (durationInHorizontalPosition === 15) {
             startAccessPoint();
             accesspointTimeoutReboot();
         }
     } else {
-        if ((IMUClass.floatp_value(z) < 0.98) && (durationInHorizontalPosition > 0 )) durationInHorizontalPosition--;
+        if ((zAxis < 0.98) && (durationInHorizontalPosition > 0 )) durationInHorizontalPosition--;
     }
-    horizontalPositionCheckCountDown =  0.5 * (1000/systemRefreshFrequency);
+    horizontalPositionCheckCountdown =  0.5 * (1000/systemRefreshFrequency);
 }
-
 
 function checkSoapTouches() {
     if (soapHasBeenTouched()) {
         soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n' ;
-        if (soapStatusText.length > 1024) saveSoapTouches();
+        if (soapStatusText.length > 1024) saveSoapTouches(soapStatusText);
     }
     else if (soapStatusText.length >0) timeWithUnsavedTouch++;
-    if (timeWithUnsavedTouch > 20) saveSoapTouches();
-}
 
+    if (timeWithUnsavedTouch > 20) saveSoapTouches(soapStatusText);
+}
 
 function showAppState(){
     currentTime = new Date();
@@ -337,36 +298,26 @@ function showAppState(){
     appStateCountdown = 15 *  (1000/systemRefreshFrequency);
 }
 
-
-function saveSoapTouches(){
-    logger("soap touched recorded at " +new Date().getSeconds());
-    //logFileStream.write(soapStatusText);
-    var logFileStream = sdCard.createWriteStream(moduleDataPath + '/' + dataFileNamePrefix + ".txt", {
-            flags: 'a',
-            defaultEncoding: 'utf8',
-            fd: null,
-            mode: 0x666,
-            autoClose: true
-        }
-    );
-    logFileStream.on('open', function(){
-        logFileStream.write(soapStatusText, function(){
-            logFileStream.end();    
-        });
-        
-    });
-    
-    
+function saveSoapTouches(touchesToSave){
     soapStatusText = "";
     timeWithUnsavedTouch = 0;
+    sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt",touchesToSave, function(){
+        logger("soap touched recorded at " +new Date().getSeconds());
+    });
+}
+
+function checkIfNeedsToSleep() {
+    var thirtyMinutes = 30 * 60 * 1000;
+    if (new Date().getTime() > (lastSleep.getTime() + thirtyMinutes )) {
+        goToSleep();
+    }
+    else logger("not time to go to sleep yet");
+    sleepModeCheckCountdown = 60 * (1000/systemRefreshFrequency);
 }
 
 
-
-
-/*
 //------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
-setInterval(function () {
+function checkGyroscope() {
 
 
     // GYROSCOPIC INFORMATION --------------------------
@@ -416,10 +367,10 @@ setInterval(function () {
  sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', encoding = 'utf8',
             function (err) {
                 if (err) {
-                    winston.error("Motion failed to record on sdcard");
+                    //winston.error("Motion failed to record on sdcard");
                     logError.appendFileSync(ErrorLogFileName, "Motion failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
                         function (err) {
-                            winston.error("all data access failed, critical error");
+                            //winston.error("all data access failed, critical error");
                         });
                 }
             });
@@ -427,17 +378,8 @@ setInterval(function () {
 
     moduleisRotation = false;
 
-}, 100);
+}
 
-
-//------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
-setInterval(function () {
-    var thirtyMinutes = 30 * 60 * 1000;
-    if (new Date().getTime() > (lastSleep.getTime() + thirtyMinutes )) {
-        goToSleep();
-    }
-    else logger("not time to go to sleep yet");
-}, 1 * 60 * 1000);
 
 
 function startAccessPoint() {
@@ -458,7 +400,7 @@ function startAccessPoint() {
 
 }
 
-*/
+
 
 
 function accesspointTimeoutReboot() {
@@ -481,7 +423,6 @@ function accesspointTimeoutReboot() {
 
     }, delayBeforeAccessPointTimeout);
 }
-
 
 function stopAccessPoint() {
 
@@ -740,7 +681,8 @@ function initTouchSensor() {
     touchI2c.writeReg(0x7f, 0xB5); //Autoconfiguration registers set for 3.3v
 
     touchI2c.writeReg(0x5e, 0x01); //this step is always LAST, only pin 0 is O
-
+    
+    touchI2c.frequency(mraa.I2C_FAST);
 
 }
 
