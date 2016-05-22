@@ -113,9 +113,10 @@ var zAcceleroValue = new IMUClass.new_floatp();
 // --------------------------------------------------------------------------
 // --------------------------------------------------------------------------
 setInterval(function () {
-
+    //console.log("+");
     rebootIfNeeded();
 
+    if (alreadyRecordingMovie) saveGyroscopeData();
     if ( --appStateCountdown === 0) showAppState();
     if ( appState != "active") return;
     if ( --horizontalPositionCheckCountdown === 0 ) checkHorizontalPosition();
@@ -129,7 +130,16 @@ setInterval(function () {
 // --------------------------------------------------------------------------
 // --------------------------------------------------------------------------
 
-
+function saveGyroscopeData(){
+    gyroAccelCompass.updateGyroscope();
+    var x = new IMUClass.new_floatp();
+    var y = new IMUClass.new_floatp();
+    var z = new IMUClass.new_floatp();
+    gyroAccelCompass.getGyroscope(x, y, z);
+    var gyroYAxis = Math.round(IMUClass.floatp_value(y));
+    sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', function (err) {
+    });
+}
 
 var initWebService = function () {
     app = express();
@@ -197,6 +207,14 @@ serialPort.on("close", function () {
     console.log("...serial port closed");
 });
 
+var startCamera = function () {
+    if (appState === "disabled") return;
+    alreadyRecordingMovie = true;
+    setTimeout(powerUsbPortOn, 250);
+    appState = "busy";
+    setTimeout(recordMovie, 3250);
+}
+
 var recordMovie = function () {
 
     logger("About to record a movie... ");
@@ -231,14 +249,6 @@ var recordMovie = function () {
         appState = "active";
     });
 };
-
-var startCamera = function () {
-    if (appState === "disabled") return;
-    alreadyRecordingMovie = true;
-    setTimeout(powerUsbPortOn, 250);
-    appState = "busy";
-    setTimeout(recordMovie, 3250);
-}
 
 var powerUsbPortOn = function () {
     powerBoost.write(1);
@@ -298,7 +308,7 @@ function saveSoapTouches(touchesToSave){
 }
 
 function checkIfNeedsToSleep() {
-    var thirtyMinutes = 1 * 30 * 1000; //fixme should be 30 minutes
+    var thirtyMinutes = 2 * 60 * 1000; //fixme should be 30 minutes
     if (new Date().getTime() > (lastSleep.getTime() + thirtyMinutes )) {
         goToSleep();
     }
@@ -311,6 +321,10 @@ function checkIfNeedsToSleep() {
 function checkGyroscope() {
 
 
+
+
+
+
     // GYROSCOPIC INFORMATION --------------------------
     if (!moduleisRotation) return;
 
@@ -321,6 +335,7 @@ function checkGyroscope() {
     var z = new IMUClass.new_floatp();
 
     gyroAccelCompass.getGyroscope(x, y, z);
+    
 
     var gyroXAxis = Math.round(IMUClass.floatp_value(x));
     var gyroYAxis = Math.round(IMUClass.floatp_value(y));
@@ -343,19 +358,6 @@ function checkGyroscope() {
     //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
 
     //}
-
-    if (alreadyRecordingMovie) {
-        logger("!!!!!!!!!!!!!!!!!!!!!!!!!!!!! alreadyRecordingMovie = TRUE ");
-         sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', function (err) {
-            if (err) {
-                //winston.error("Motion failed to record on sdcard");
-                logError.appendFileSync(ErrorLogFileName, "Motion failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
-                    function (err) {
-                        //winston.error("all data access failed, critical error");
-                    });
-            }
-         });
-    }
 
     moduleisRotation = false;
 
