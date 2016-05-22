@@ -66,9 +66,10 @@ var gyrocsopeInterrupt ;
 var horizontalPositionInterrupt ;
 
 appMode = process.env.NODE_ENV || "development";
-//appMode = "development";
 
-videoDuration = (appMode === "production") ? "40" : "11";
+appMode = "development"; //fixme change back to commented
+
+videoDuration = (appMode === "production") ? "40" : "5";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (1 * 5 * 1000) : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : (2 * 60 * 1000);
 
@@ -120,7 +121,7 @@ setInterval(function () {
     if ( --horizontalPositionCheckCountdown === 0 ) checkHorizontalPosition();
 
     checkSoapTouches();
-    //checkGyroscope();
+    checkGyroscope();
 
     if (--sleepModeCheckCountdown === 0 ) checkIfNeedsToSleep();
 
@@ -198,12 +199,8 @@ serialPort.on("close", function () {
 
 var recordMovie = function () {
 
-
-    logger(" ...about to record a movie... ");
-
-    var command = scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration;
-
-    exec(command, {timeout: 60000}, function (error, stdout, stderr) {
+    logger("About to record a movie... ");
+    exec(scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration, {timeout: 60000}, function (error, stdout, stderr) {
 
         if (!error) {
             logger("image captured successfully: " + stdout);
@@ -231,28 +228,19 @@ var recordMovie = function () {
 
         alreadyRecordingMovie = false;
 
-        /*sdCard.appendFile('/home/root/camera.txt', msg + '\n', encoding = 'utf8',
-         function (err) {
-         if (err) {
-         winston.error("shit happened with the file writter");
-         throw err;
-         }
-         });
-         */
         appState = "active";
     });
 };
 
 var startCamera = function () {
-    if (appState == "disabled") return;
-    setTimeout(powerUsbPortOn, 250);
+    if (appState === "disabled") return;
     alreadyRecordingMovie = true;
+    setTimeout(powerUsbPortOn, 250);
     appState = "busy";
     setTimeout(recordMovie, 3250);
 }
 
 var powerUsbPortOn = function () {
-    logger("about to set 1 on POWER BOOST pin");
     powerBoost.write(1);
     logger("... power boosted to 5v");
 };
@@ -295,6 +283,9 @@ function checkSoapTouches() {
 function showAppState(){
     currentTime = new Date();
     logger("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds());
+    serialPort.write("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds() + "\n\r", function (err, results) {
+    });
+    serialPort.drain();
     appStateCountdown = 15 *  (1000/systemRefreshFrequency);
 }
 
@@ -307,7 +298,7 @@ function saveSoapTouches(touchesToSave){
 }
 
 function checkIfNeedsToSleep() {
-    var thirtyMinutes = 30 * 60 * 1000;
+    var thirtyMinutes = 1 * 30 * 1000; //fixme should be 30 minutes
     if (new Date().getTime() > (lastSleep.getTime() + thirtyMinutes )) {
         goToSleep();
     }
@@ -323,24 +314,11 @@ function checkGyroscope() {
     // GYROSCOPIC INFORMATION --------------------------
     if (!moduleisRotation) return;
 
-
-    //if ( thereIsARotation()) {
-    // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_WHO_AM_I_XM )); // if chip failed return false all the time
-    // logger( gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_WHO_AM_I_G )); // if chip failed return false all the time
-
-    //winston.info( "Rotation detected");
-    gyroAccelCompass.update();
+    gyroAccelCompass.updateGyroscope();
 
     var x = new IMUClass.new_floatp();
     var y = new IMUClass.new_floatp();
     var z = new IMUClass.new_floatp();
-    //test if removing does not alter horizontal detection gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC);
-
-    //gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC); // for horizontal
-
-    //logger("Origin int GEN2: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_2_SRC).toString(16) + ". " +
-    //  "Origin int GEN1: 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_XM, IMUClass.LSM9DS0.REG_INT_GEN_1_SRC).toString(16));// + ". "+
-    //"Origin INTG: 0x"+ gyroAccelCompass.readReg( IMUClass.LSM9DS0.DEV_GYRO , IMUClass.LSM9DS0.REG_INT1_SRC_G).toString(16) );
 
     gyroAccelCompass.getGyroscope(x, y, z);
 
@@ -354,6 +332,9 @@ function checkGyroscope() {
 
     if (!alreadyRecordingMovie) {
         startCamera();
+        serialPort.write("Rotation " + "\n\r", function (err, results) {
+        });
+        serialPort.drain();
     }
 
     //}
@@ -364,16 +345,16 @@ function checkGyroscope() {
     //}
 
     if (alreadyRecordingMovie) {
- sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', encoding = 'utf8',
-            function (err) {
-                if (err) {
-                    //winston.error("Motion failed to record on sdcard");
-                    logError.appendFileSync(ErrorLogFileName, "Motion failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
-                        function (err) {
-                            //winston.error("all data access failed, critical error");
-                        });
-                }
-            });
+        logger("!!!!!!!!!!!!!!!!!!!!!!!!!!!!! alreadyRecordingMovie = TRUE ");
+         sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', function (err) {
+            if (err) {
+                //winston.error("Motion failed to record on sdcard");
+                logError.appendFileSync(ErrorLogFileName, "Motion failed to record on sdcard on " + new Date().getTime() + '\n', encoding = 'utf8',
+                    function (err) {
+                        //winston.error("all data access failed, critical error");
+                    });
+            }
+         });
     }
 
     moduleisRotation = false;
@@ -447,8 +428,8 @@ function irqTouchCallback() {
 
 function gyroInterruptCallBack() {
     lastSleep = new Date();
-    logger("ISR Rotation ");
     if ( appState === "active"  )  moduleisRotation = true;
+    //logger("ISR Rotation ");
 }
 
 function horizontalPositionCallBack() {
@@ -472,13 +453,13 @@ function soapHasBeenTouched() {
 
 function setupGyroscope() {
 
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G, 0x08); // enable interrupt only on Y axis
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x08); // enable interrupt only on Y axis (not Latching)
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG1_G, 0x0A);// Y axis enabled only
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG2_G, 0x00);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x80);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00);
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, 0x20); // 0x25 ); //set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x0A); //set minimum rotation duration to trigger interrupt (based on frequency)
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, 0x10);//0x20); // 0x25 ); //set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x87); //set minimum rotation duration to trigger interrupt (based on frequency)
 
 
     //showGyrodebugInfo();
@@ -753,7 +734,7 @@ logger("App mode: " + appMode);
 //------------------ initialize power booster to OFF
 powerBoost = new mraa.Gpio(voltageBoostPin);
 powerBoost.dir(mraa.DIR_OUT);
-powerBoost.write(0);
+powerBoost.write(1);
 
 touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
 
