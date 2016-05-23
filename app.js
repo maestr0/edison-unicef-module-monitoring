@@ -8,7 +8,7 @@ var serialPort = new SerialPort(serialPath, {
     baudrate: 115200
 });
 
-var appVersion = 22;
+var appVersion = 24;
 var startDate = new Date();
 var lastSleep = new Date();
 
@@ -39,10 +39,8 @@ serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 var dataFileNamePrefix = generateID();
 
-//var express = require('express');
+var express = require('express');
 var sdCard = require('fs');
-
-
 
 
 var touchSensorDriver = require('jsupm_mpr121'); // GLOBAL variable
@@ -50,7 +48,7 @@ var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using defaul
 var exec = require('child_process').exec;
 
 var alreadyRecordingMovie = false;
-var moduleisRotation = false;
+var moduleisRotating = false;
 var durationInHorizontalPosition = 0;
 
 var capacitiveSensorInterruptPin = 8;
@@ -73,17 +71,9 @@ videoDuration = (appMode === "production") ? "40" : "5";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (1 * 5 * 1000) : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : (2 * 60 * 1000);
 
-var moduleIsHorizontal = 0;
 //winston.info("new file prefix: " + dataFileNamePrefix);
 
-var gyroZaxisTransient = 0x20; //0o00100000 ;/
-var gyroZaxisLatchedHigh = 0x60; //01100000 ;
-var gyroZaxisLatchedBoth = 0x70; //01100000 ;
-var gyroInterruptActive = 0x80; // 10000000 ;
 var weAreRotating = 0x60; //0x40 is interrupt triggered
-var touchThresholdAddress = 0x41; // address to set the touch threshold,
-var touchThreshold = 255; // lowest sensitivity
-
 var touchDataID = 0;
 var motionDataID = 0;
 
@@ -100,44 +90,26 @@ var app;
 
 var soapStatusText = "";
 var timeWithUnsavedTouch = 0;
-var systemRefreshFrequency = 100; //ms
+var systemRefreshFrequency = 200; //ms
 
 var appStateCountdown = 15 *  (1000/systemRefreshFrequency);
 var horizontalPositionCheckCountdown = 0.5 * (1000/systemRefreshFrequency);
-var sleepModeCheckCountdown = 60 * (1000/systemRefreshFrequency);
+var sleepModeCheckCountdown = 15 * (1000/systemRefreshFrequency); //fixme should be 60 *
 
 var xAcceleroValue = new IMUClass.new_floatp();
 var yAcceleroValue = new IMUClass.new_floatp();
 var zAcceleroValue = new IMUClass.new_floatp();
+var currentTime;
 
-// --------------------------------------------------------------------------
-// --------------------------------------------------------------------------
-setInterval(function () {
-    //console.log("+");
-    rebootIfNeeded();
 
-    if (alreadyRecordingMovie) saveGyroscopeData();
-    if ( --appStateCountdown === 0) showAppState();
-    if ( appState != "active") return;
-    if ( --horizontalPositionCheckCountdown === 0 ) checkHorizontalPosition();
-
-    checkSoapTouches();
-    checkGyroscope();
-
-    if (--sleepModeCheckCountdown === 0 ) checkIfNeedsToSleep();
-
-}, systemRefreshFrequency);
-// --------------------------------------------------------------------------
-// --------------------------------------------------------------------------
-
-function saveGyroscopeData(){
+function saveGyroscopeData(currentTime){
     gyroAccelCompass.updateGyroscope();
     var x = new IMUClass.new_floatp();
     var y = new IMUClass.new_floatp();
     var z = new IMUClass.new_floatp();
     gyroAccelCompass.getGyroscope(x, y, z);
     var gyroYAxis = Math.round(IMUClass.floatp_value(y));
-    sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + Date.now() + '\n', function (err) {
+    sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + currentTime.getTime() + '\n', function (err) {
     });
 }
 
@@ -200,7 +172,6 @@ serialPort.on("open", function () {
 
 serialPort.on("error", function () {
     console.log("--SERIAL PORT ENCOUNTERED AN ERROR--");
-
 });
 
 serialPort.on("close", function () {
@@ -208,57 +179,66 @@ serialPort.on("close", function () {
 });
 
 var startCamera = function () {
-    if (appState === "disabled") return;
-    alreadyRecordingMovie = true;
-    setTimeout(powerUsbPortOn, 250);
+    //setTimeout(powerUsbPortOn, 250); //fixme uncomment
+    powerUsbPortOn();
     appState = "busy";
-    setTimeout(recordMovie, 3250);
+    //setTimeout(recordMovie, 3250); //fixme uncomment
+    recordMovie();
 }
 
 var recordMovie = function () {
 
-    logger("About to record a movie... ");
-    exec(scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration, {timeout: 60000}, function (error, stdout, stderr) {
+    console.log("Recording a movie... ");
+    /*exec(scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration, {timeout: 60000}, function (error, stdout, stderr) {
 
         if (!error) {
-            logger("image captured successfully: " + stdout);
+            console.log("image captured successfully: " + stdout);
         } else {
-            logger(" ERROR: Camera could not record videos: " + stderr + "\n" + stdout + "\n" + error);
+            console.log(" ERROR: Camera could not record videos: " + stderr + "\n" + stdout + "\n" + error);
         }
 
         powerUsbPortOff();
         var oldDataFileNamePrefix = dataFileNamePrefix;
         dataFileNamePrefix = generateID();
 
-        logger("about to archive...");
+        console.log("about to archive...");
 
         exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60000}, function (error, stdout, stderr) {
+
+            alreadyRecordingMovie = false;
+            moduleisRotating = false ;
+            appState = "active";
+
+
             if (!error) {
-                logger("... archive completed: " + stdout);
+                console.log("... archive completed: " + stdout);
                 goToSleep();
             }
             else {
-                logger("ERRO : Archiver failed to archive data: " + stderr + "\n" + stdout + "\n" + error);
+                console.log("ERRO : Archiver failed to archive data: " + stderr + "\n" + stdout + "\n" + error);
             }
 
 
         });
 
-        alreadyRecordingMovie = false;
 
-        appState = "active";
-    });
+    });*/
+    console.log("image captured successfully");
+    alreadyRecordingMovie = false;
+    moduleisRotating = false ;
+    appState = "active";
+
 };
 
 var powerUsbPortOn = function () {
     powerBoost.write(1);
-    logger("... power boosted to 5v");
+    console.log("... power boosted to 5v");
 };
 
 var powerUsbPortOff = function () {
-    logger("About to go back to 3.3 v... ");
+    console.log("About to go back to 3.3 v... ");
     powerBoost.write(0);
-    logger("... Back to 3.3 v");
+    console.log("... Back to 3.3 v");
 };
 
 function checkHorizontalPosition(){
@@ -269,7 +249,7 @@ function checkHorizontalPosition(){
 
     if ((zAxis > 0.985) && (zAxis < 2.0) && ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)) {
         durationInHorizontalPosition++;
-        logger("module is horizontal");
+        console.log("module is horizontal");
         if (durationInHorizontalPosition === 15) {
             startAccessPoint();
             accesspointTimeoutReboot();
@@ -280,9 +260,9 @@ function checkHorizontalPosition(){
     horizontalPositionCheckCountdown =  0.5 * (1000/systemRefreshFrequency);
 }
 
-function checkSoapTouches() {
+function checkSoapTouches(currentTime) {
     if (soapHasBeenTouched()) {
-        soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + Date.now() + '\n' ;
+        soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + currentTime.getTime() + '\n' ;
         if (soapStatusText.length > 1024) saveSoapTouches(soapStatusText);
     }
     else if (soapStatusText.length >0) timeWithUnsavedTouch++;
@@ -290,12 +270,11 @@ function checkSoapTouches() {
     if (timeWithUnsavedTouch > 20) saveSoapTouches(soapStatusText);
 }
 
-function showAppState(){
-    currentTime = new Date();
-    logger("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds());
-    serialPort.write("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds() + "\n\r", function (err, results) {
+function showAppState(currentTime){
+    console.log("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds());
+    /*serialPort.write("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds() + "\n\r", function (err, results) {
     });
-    serialPort.drain();
+    serialPort.drain();*/
     appStateCountdown = 15 *  (1000/systemRefreshFrequency);
 }
 
@@ -303,17 +282,40 @@ function saveSoapTouches(touchesToSave){
     soapStatusText = "";
     timeWithUnsavedTouch = 0;
     sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt",touchesToSave, function(){
-        logger("soap touched recorded at " +new Date().getSeconds());
+        console.log("soap touched recorded at " +new Date().getSeconds());
     });
 }
 
-function checkIfNeedsToSleep() {
-    var thirtyMinutes = 2 * 60 * 1000; //fixme should be 30 minutes
-    if (new Date().getTime() > (lastSleep.getTime() + thirtyMinutes )) {
+function checkIfNeedsToSleep(currentTime) {
+    var thirtyMinutes = 1 * 10 * 1000; //fixme should be 30 minutes
+    if (currentTime.getTime() > (lastSleep.getTime() + thirtyMinutes )) {
         goToSleep();
     }
-    else logger("not time to go to sleep yet");
-    sleepModeCheckCountdown = 60 * (1000/systemRefreshFrequency);
+    else console.log("not time to go to sleep yet");
+    sleepModeCheckCountdown = 20 * (1000/systemRefreshFrequency); //fixme should be 60
+}
+
+function goToSleep() {
+    lastSleep = new Date();
+    appState = "sleep";
+    console.log("Preparing to sleep... ");
+
+  /*  exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error) {
+        if (error) {
+            console.log("---- WE CANNOT SLEEP -----\n" + error );
+        }
+        console.log("waking up from sleep");
+        lastSleep = new Date();
+        appState = "active";
+        console.log("... Awake");
+    });
+    */
+
+
+    console.log("waking up from sleep");
+    lastSleep = new Date();
+    appState = "active";
+    console.log("... Awake");
 }
 
 
@@ -321,14 +323,7 @@ function checkIfNeedsToSleep() {
 function checkGyroscope() {
 
 
-
-
-
-
-    // GYROSCOPIC INFORMATION --------------------------
-    if (!moduleisRotation) return;
-
-    gyroAccelCompass.updateGyroscope();
+  /*  gyroAccelCompass.updateGyroscope();
 
     var x = new IMUClass.new_floatp();
     var y = new IMUClass.new_floatp();
@@ -343,27 +338,25 @@ function checkGyroscope() {
 
 
     // if (!(gyroXAxis >  gyroYAxis ) && !( gyroZAxis >  gyroYAxis )){
-    logger("Gyroscope:     GX: " + gyroXAxis + " AY: " + gyroYAxis + " AZ: " + gyroZAxis);
+    console.log("Gyroscope:     GX: " + gyroXAxis + " AY: " + gyroYAxis + " AZ: " + gyroZAxis);
+*/
 
     if (!alreadyRecordingMovie) {
+        alreadyRecordingMovie = true;
         startCamera();
-        serialPort.write("Rotation " + "\n\r", function (err, results) {
+        /*serialPort.write("Rotation " + "\n\r", function (err, results) {
         });
-        serialPort.drain();
+        serialPort.drain();*/
     }
 
     //}
 
     //gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
-    //logger("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
+    //console.log("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
 
     //}
 
-    moduleisRotation = false;
-
 }
-
-
 
 function startAccessPoint() {
 
@@ -372,32 +365,29 @@ function startAccessPoint() {
 
         if (error) {
             appState = "active";
-            logger("ERROR: could not start AP mode. About to reboot " + error + ' --- ' + stderr);
+            console.log("ERROR: could not start AP mode. About to reboot " + error + ' --- ' + stderr);
             reboot();
 
         } else {
-            logger("in AP mode " + stdout);
+            console.log("in AP mode " + stdout);
             appState = "disabled";
         }
     });
 
 }
 
-
-
-
 function accesspointTimeoutReboot() {
     setTimeout(function () {
-        logger("ap timed out");
+        console.log("ap timed out");
 
         exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
 
             if (error) {
                 appState = "active";
-                logger("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr);
+                console.log("about to reboot since stopping AP didn't work " + error + ' --- ' + stderr);
 
             } else {
-                logger("... AP mode stopped " + stdout);
+                console.log("... AP mode stopped " + stdout);
                 appState = "active";
             }
 
@@ -412,10 +402,10 @@ function stopAccessPoint() {
     exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
 
         if (error) {
-            logger("Stopping AP didn't work:\n " + error + '\n' + stderr + "\n" + stdout);
+            console.log("Stopping AP didn't work:\n " + error + '\n' + stderr + "\n" + stdout);
 
         } else {
-            logger("... AP mode OFF: " + stdout);
+            console.log("... AP mode OFF: " + stdout);
         }
     });
 
@@ -425,23 +415,21 @@ function stopAccessPoint() {
 //---------------------- IRQ CALLBACK --------------------------
 
 function irqTouchCallback() {
-    lastSleep = new Date();
 }
 
 function gyroInterruptCallBack() {
-    lastSleep = new Date();
-    if ( appState === "active"  )  moduleisRotation = true;
-    //logger("ISR Rotation ");
+    //console.log("-ISR GYRO");
+    //moduleisRotating = true; //fixme enable again
+    //console.log("-ISR GYRO--");
 }
 
 function horizontalPositionCallBack() {
-    lastSleep = new Date();
-    logger("-ISR horizontal");
+    //console.log("-ISR horizontal");
 }
 
 function moduleTransportationCallBack() {
-    lastSleep = new Date();
-    logger("-ISR transportation");
+
+    //console.log("-ISR transportation");
 }
 //----------------- UTILITY FUNCTIONS --------------------------
 
@@ -478,7 +466,6 @@ function setupGyroscope() {
      */
 }
 
-
 function setupAccelerometer() {
 
     // SETUP GEN 1 FOR Z AXIS HORIZONTAL DETECTION
@@ -502,13 +489,6 @@ function setupAccelerometer() {
 
 }
 
-
-function thereIsARotation() {
-    if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) === 255) return false; // if chip failed return false all the time
-    if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_SRC_G) >= weAreRotating) return true;
-    return false;
-
-}
 function showGyrodebugInfo() {
 
     /*winston.info("Gyro CFG : 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G).toString(16));
@@ -523,23 +503,11 @@ function showGyrodebugInfo() {
     */
 }
 
-// ---- UTILITY FUNCTIONS ----------
-function isEmpty(obj) {
-    for (var prop in obj) {
-        if (obj.hasOwnProperty(prop))
-            return false;
-    }
-
-    return true && JSON.stringify(obj) === JSON.stringify({});
-}
-
 function logger(msg) {
     console.log(msg + "\n");
-    /*serialPort.write(msg + "\n\r", function (err, results) {
+    serialPort.write(msg + "\n\r", function (err, results) {
     });
-    serialPort.drain();*/
-
-
+    serialPort.drain();
     //winston.info(msg);
 }
 
@@ -569,10 +537,10 @@ function showHardwareStateOnButton() {
         pushButtonLight.write(1);
     }
 
-    logger("Push Button about turns ON");
+    console.log("Push Button about turns ON");
     setTimeout(function () {
         pushButtonLight.write(0);
-        logger("Push Button IS OFF");
+        console.log("Push Button IS OFF");
 
     }, 8000);
 
@@ -599,7 +567,6 @@ function touchSensorWorks() {
     }
     return touchSensorI2CWorks;
 }
-
 
 function initTouchSensor() {
     var touchI2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
@@ -669,11 +636,9 @@ function initTouchSensor() {
 
 }
 
-
 function generateID() {
     var randomString = Math.random().toString(36).substring(10);
     return rebootCount + '_' + currentDate() + '_' + randomString;
-
 }
 
 function currentDate() {
@@ -694,10 +659,9 @@ function currentDate() {
     return [year, month, day].join('_') + '-' + [hour, min, sec].join('_');
 }
 
-function rebootIfNeeded() {
+function rebootIfNeeded(currentTime) {
     var eightHours = 8 * 60 * 60 * 1000;
-    if (appState !== "disabled" && new Date().getTime() > (startDate.getTime() + eightHours)) {
-        logger("--------------- Reboot needed ---------------");
+    if (appState !== "disabled" && currentTime.getTime() > (startDate.getTime() + eightHours)) {
         appState = "disabled";
         reboot();
     }
@@ -705,30 +669,15 @@ function rebootIfNeeded() {
 
 function reboot() {
     exec("reboot now", function (out, err, err2) {
-        logger("rebooting... " + out + err + err2);
+        console.log("rebooting... " + out + err + err2);
     });
 }
 
-function forceReboot() {
-    exec("reboot -f", function (out, err, err2) {
-        logger("rebooting... " + out + err + err2);
-    });
-}
 
-function goToSleep() {
-    logger("Preparing to sleep... ");
-    lastSleep = new Date();
-    exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error, stdout, stderr) {
-        if (error) {
-            logger("---- WE CANNOT SLEEP -----\n" + error + "\n" + stdout + "\n" + stderr);
-        }
-    });
-}
 
 
 // ------------------------------------------------------------
 
-var pushButtonLightStyle = 0;
 
 //initWebService();
 logger("App mode: " + appMode);
@@ -778,15 +727,13 @@ if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO
 
     gyrocsopeInterrupt = new mraa.Gpio(GyroscopeInterruptPin);
     gyrocsopeInterrupt.dir(mraa.DIR_IN);
-    logger("init gyro int ISR");
 
     horizontalPositionInterrupt = new mraa.Gpio(horizontalPositionInterruptPin);
     horizontalPositionInterrupt.dir(mraa.DIR_IN);
-    logger("init horizontal int ISR");
+
 
     var moduleTransportationInterrupt = new mraa.Gpio(moduleIsBeingTransportedInterruptPin);
     moduleTransportationInterrupt.dir(mraa.DIR_IN);
-    logger("init IMU int ISR");
 
 
     gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
@@ -809,3 +756,33 @@ setTimeout(function(){
     appState = "active";
 }, delayBeforeActivatingAllSensors );
 
+//moduleisRotating = true; //fixme remove this
+
+// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
+setInterval(function () {
+
+
+    if (appState === "sleep") return;
+    currentTime = new Date();
+
+    rebootIfNeeded(currentTime);
+    if (--sleepModeCheckCountdown === 0 ) checkIfNeedsToSleep(currentTime);
+    if (appState === "sleep") return;
+
+
+    if (alreadyRecordingMovie) saveGyroscopeData(currentTime);
+    if ( --appStateCountdown === 0) showAppState(currentTime);
+    checkSoapTouches(currentTime);
+
+    if ( appState === "active") {
+        if (--horizontalPositionCheckCountdown === 0) checkHorizontalPosition();
+
+        if (gyrocsopeInterrupt.read() === 1) moduleisRotating = true;
+        if (moduleisRotating ) checkGyroscope();
+    }
+    console.log('-');
+
+}, systemRefreshFrequency);
+// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------
