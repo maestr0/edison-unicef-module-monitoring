@@ -792,7 +792,7 @@ setInterval(function () {
     checkSoapTouches(currentTime);
 
     if ( appState === "active") {
-        if (--horizontalPositionCheckCountdown === 0) checkHorizontalPosition();
+        if (--horizontalPositionCheckCountdown < 0) checkHorizontalPosition();
 
         if (gyrocsopeInterrupt.read() === 1) moduleisRotating = true;
         if (moduleisRotating ) checkGyroscope();
