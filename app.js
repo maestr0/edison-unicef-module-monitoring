@@ -261,7 +261,7 @@ function checkHorizontalPosition(){
 
     if ((zAxis > 0.98) && (zAxis < 2.0) /*&& ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)*/ ) {
         durationInHorizontalPosition++;
-        logger("module is horizontal");
+        logger("module is horizontal " + durationInHorizontalPosition + " time");
         if (durationInHorizontalPosition === 15) {
             startAccessPoint();
             accesspointTimeoutReboot();
