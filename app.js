@@ -259,7 +259,7 @@ function checkHorizontalPosition(){
     gyroAccelCompass.getAccelerometer(xAcceleroValue , yAcceleroValue , zAcceleroValue); // for horizontal detection
     var zAxis = IMUClass.floatp_value(zAcceleroValue);
 
-    if ((zAxis > 0.98) && (zAxis < 2.0) && ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)) {
+    if ((zAxis > 0.98) && (zAxis < 2.0) /*&& ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)*/ ) {
         durationInHorizontalPosition++;
         logger("module is horizontal");
         if (durationInHorizontalPosition === 15) {
