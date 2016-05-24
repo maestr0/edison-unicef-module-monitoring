@@ -300,9 +300,9 @@ function saveSoapTouches(touchesToSave){
 
 function showAppState(currentTime){
     console.log("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds());
-    /*serialPort.write("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds() + "\n\r", function (err, results) {
+    serialPort.write("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds() + "\n\r", function (err, results) {
     });
-    serialPort.drain();*/
+    serialPort.drain();
     appStateCountdown = 15 *  (1000/systemRefreshFrequency);
 }
 
