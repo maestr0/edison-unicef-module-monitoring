@@ -69,7 +69,7 @@ appMode = process.env.NODE_ENV || "development";
 
 videoDuration = (appMode === "production") ? "40" : "5";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (1 * 5 * 1000) : 1000;
-delayBeforeAccessPointTimeout = (appMode === "production") ? (20 * 60 * 1000) : (2 * 60 * 1000);
+delayBeforeAccessPointTimeout = (appMode === "production") ? (22 * 60 * 1000) : (2 * 60 * 1000);
 
 //winston.info("new file prefix: " + dataFileNamePrefix);
 
@@ -263,6 +263,7 @@ function checkHorizontalPosition(){
         durationInHorizontalPosition++;
         logger("module is horizontal " + durationInHorizontalPosition + " time");
         if (durationInHorizontalPosition === 15) {
+            durationInHorizontalPosition = 0 ;
             startAccessPoint();
             accesspointTimeoutReboot();
         }
@@ -375,6 +376,7 @@ function checkGyroscope() {
 
 function startAccessPoint() {
     logger("starting access point");
+    appState = "disabled";
     //NOTE: no timeout for exec here as it will leave the app stalled. accesspointTimeoutReboot is used instead
     exec(scriptsPath + "/startAp.sh ", function (error, stdout, stderr) {
 
@@ -780,7 +782,7 @@ setInterval(function () {
 
     currentTime = new Date();
 
-    if (appState != "busy") {
+    if (appState === "active") {
         rebootIfNeeded(currentTime);
         if (--sleepModeCheckCountdown === 0) checkIfNeedsToSleep(currentTime);
         if (appState === "sleep") return;
