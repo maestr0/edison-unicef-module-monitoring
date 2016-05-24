@@ -184,6 +184,7 @@ var initWebService = function () {
 
 serialPort.on("open", function () {
     serialPort.write("\n\r-----------------------------------------------------------\n\r---------------- Starting monitoring app v" + appVersion + " ----------------\n\r", function (err, results) { //Write data
+        setupMonitoring();
     });
 });
 
@@ -258,7 +259,7 @@ function checkHorizontalPosition(){
     gyroAccelCompass.getAccelerometer(xAcceleroValue , yAcceleroValue , zAcceleroValue); // for horizontal detection
     var zAxis = IMUClass.floatp_value(zAcceleroValue);
 
-    if ((zAxis > 0.985) && (zAxis < 2.0) && ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)) {
+    if ((zAxis > 0.98) && (zAxis < 2.0) && ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)) {
         durationInHorizontalPosition++;
         console.log("module is horizontal");
         if (durationInHorizontalPosition === 15) {
@@ -327,7 +328,7 @@ function goToSleep() {
         console.log("waking up from sleep");
         lastSleep = new Date();
         appState = "active";
-        console.log("... Awake");
+        logger("... Awake");
     });
 
 }
@@ -562,7 +563,82 @@ function showHardwareStateOnButton() {
 
 //-----------------------------------------------------------------------------------------------------------
 function setupMonitoring() {
+    initWebService();
+    logger("App mode: " + appMode);
 
+//------------------ initialize power booster to OFF
+    powerBoost = new mraa.Gpio(voltageBoostPin);
+    powerBoost.dir(mraa.DIR_OUT);
+    powerBoost.write(0);
+
+    touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
+
+    if (touchSensorWorks()) {
+        logger("TOUCH SENSOR OK");
+        initTouchSensor();
+
+
+        //NOTE: this below is turned Off since we are not waking up from touch, only when rotation is right
+        //do we allow touch to work
+
+        //Pin setup for touch sensor interrupt
+        // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
+        //touchInterruptPin.dir(mraa.DIR_IN);
+
+
+        // setTimeout(function () {
+        // touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
+        //  }, 1000);
+
+    }
+    else {
+        logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
+        logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
+            function (err) {
+                //winston.error("Error log failing , critical error");
+            });
+    }
+
+
+    gyroAccelCompass = new IMUClass.LSM9DS0();
+
+    if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
+        logger("MOTION SENSOR OK");
+        gyroAccelCompass.init();                          // Initialize the device with default values
+        setupGyroscope();
+        setupAccelerometer();
+
+
+        gyrocsopeInterrupt = new mraa.Gpio(GyroscopeInterruptPin);
+        gyrocsopeInterrupt.dir(mraa.DIR_IN);
+
+        horizontalPositionInterrupt = new mraa.Gpio(horizontalPositionInterruptPin);
+        horizontalPositionInterrupt.dir(mraa.DIR_IN);
+
+
+        var moduleTransportationInterrupt = new mraa.Gpio(moduleIsBeingTransportedInterruptPin);
+        moduleTransportationInterrupt.dir(mraa.DIR_IN);
+
+
+        gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
+        horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
+        moduleTransportationInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
+
+    }
+    else {
+        logger(" !!!!!!!!!!!!!!!!!! NO MOTION SENSOR !!!!!!!!!!!!!!!!");
+        IMUSensorIsDamaged = true;
+        logError.appendFileSync(ErrorLogFileName, "Motion sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
+            function (err) {
+                //winston.error("Error log failing , critical error");
+            });
+    }
+
+    showHardwareStateOnButton();
+
+    setTimeout(function(){
+        appState = "active";
+    }, delayBeforeActivatingAllSensors );
 
 }
 
@@ -692,82 +768,7 @@ function reboot() {
 // ------------------------------------------------------------
 
 
-//initWebService();
-logger("App mode: " + appMode);
 
-//------------------ initialize power booster to OFF
-powerBoost = new mraa.Gpio(voltageBoostPin);
-powerBoost.dir(mraa.DIR_OUT);
-powerBoost.write(0);
-
-touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
-
-if (touchSensorWorks()) {
-    logger("TOUCH SENSOR OK");
-    initTouchSensor();
-
-
-    //NOTE: this below is turned Off since we are not waking up from touch, only when rotation is right
-    //do we allow touch to work
-
-    //Pin setup for touch sensor interrupt
-    // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
-    //touchInterruptPin.dir(mraa.DIR_IN);
-
-
-    // setTimeout(function () {
-    // touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-    //  }, 1000);
-
-}
-else {
-    logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
-    logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
-        function (err) {
-            //winston.error("Error log failing , critical error");
-        });
-}
-
-
-gyroAccelCompass = new IMUClass.LSM9DS0();
-
-if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
-    logger("MOTION SENSOR OK");
-    gyroAccelCompass.init();                          // Initialize the device with default values
-    setupGyroscope();
-    setupAccelerometer();
-
-
-    gyrocsopeInterrupt = new mraa.Gpio(GyroscopeInterruptPin);
-    gyrocsopeInterrupt.dir(mraa.DIR_IN);
-
-    horizontalPositionInterrupt = new mraa.Gpio(horizontalPositionInterruptPin);
-    horizontalPositionInterrupt.dir(mraa.DIR_IN);
-
-
-    var moduleTransportationInterrupt = new mraa.Gpio(moduleIsBeingTransportedInterruptPin);
-    moduleTransportationInterrupt.dir(mraa.DIR_IN);
-
-
-    gyrocsopeInterrupt.isr(mraa.EDGE_BOTH, gyroInterruptCallBack);
-    horizontalPositionInterrupt.isr(mraa.EDGE_BOTH, horizontalPositionCallBack);
-    moduleTransportationInterrupt.isr(mraa.EDGE_BOTH, moduleTransportationCallBack);
-
-}
-else {
-    logger(" !!!!!!!!!!!!!!!!!! NO MOTION SENSOR !!!!!!!!!!!!!!!!");
-    IMUSensorIsDamaged = true;
-    logError.appendFileSync(ErrorLogFileName, "Motion sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
-        function (err) {
-            //winston.error("Error log failing , critical error");
-        });
-}
-
-showHardwareStateOnButton();
-
-setTimeout(function(){
-    appState = "active";
-}, delayBeforeActivatingAllSensors );
 
 var justFinishedRecordingMovie = false;
 
