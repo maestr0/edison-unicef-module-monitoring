@@ -65,7 +65,7 @@ var horizontalPositionInterrupt ;
 
 appMode = process.env.NODE_ENV || "development";
 
-appMode = "development"; //fixme change back to commented
+//appMode = "development";
 
 videoDuration = (appMode === "production") ? "40" : "5";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (1 * 5 * 1000) : 1000;
@@ -94,24 +94,41 @@ var systemRefreshFrequency = 200; //ms
 
 var appStateCountdown = 15 *  (1000/systemRefreshFrequency);
 var horizontalPositionCheckCountdown = 0.5 * (1000/systemRefreshFrequency);
-var sleepModeCheckCountdown = 15 * (1000/systemRefreshFrequency); //fixme should be 60 *
+var sleepModeCheckCountdown = 60 * (1000/systemRefreshFrequency);
 
 var xAcceleroValue = new IMUClass.new_floatp();
 var yAcceleroValue = new IMUClass.new_floatp();
 var zAcceleroValue = new IMUClass.new_floatp();
 var currentTime;
 
+var xGyroAxis;
+var yGyroAxis;
+var zGyroAxis;
+var gyroscopeDataText = "";
 
-function saveGyroscopeData(currentTime){
+function getGyroscopeData(currentTime){
     gyroAccelCompass.updateGyroscope();
-    var x = new IMUClass.new_floatp();
-    var y = new IMUClass.new_floatp();
-    var z = new IMUClass.new_floatp();
-    gyroAccelCompass.getGyroscope(x, y, z);
-    var gyroYAxis = Math.round(IMUClass.floatp_value(y));
-    sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + gyroYAxis + ',' + currentTime.getTime() + '\n', function (err) {
-    });
+    xGyroAxis = new IMUClass.new_floatp();
+    yGyroAxis = new IMUClass.new_floatp();
+    zGyroAxis = new IMUClass.new_floatp();
+    gyroAccelCompass.getGyroscope(xGyroAxis, yGyroAxis, zGyroAxis);
+
+    gyroscopeDataText += templateDataLogMotion + rebootCount + ',' + (motionDataID++) + ',' + (Math.round(IMUClass.floatp_value(yGyroAxis))) + ',' + currentTime.getTime() + '\n';
+    if (gyroscopeDataText.length > 200 )  saveGyroscopeData();
 }
+
+
+function saveGyroscopeData(){
+
+    sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".csv", gyroscopeDataText, function (err) {
+        if(err){
+            console.log("ERROR: impossible to save gyroscope data");
+        }
+        gyroscopeDataText = "";
+    });
+
+}
+
 
 var initWebService = function () {
     app = express();
@@ -178,67 +195,61 @@ serialPort.on("close", function () {
     console.log("...serial port closed");
 });
 
+
+
+
 var startCamera = function () {
-    //setTimeout(powerUsbPortOn, 250); //fixme uncomment
-    powerUsbPortOn();
     appState = "busy";
-    //setTimeout(recordMovie, 3250); //fixme uncomment
-    recordMovie();
+    setTimeout(powerUsbPortOn, 250);
+    setTimeout(recordMovie, 3250);
+
 }
 
 var recordMovie = function () {
 
-    console.log("Recording a movie... ");
-    /*exec(scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration, {timeout: 60000}, function (error, stdout, stderr) {
+    //console.log("Recording a movie... ");
+    exec(scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration, {timeout: 60000}, function (error, stdout, stderr) {
+
 
         if (!error) {
-            console.log("image captured successfully: " + stdout);
+            //console.log("...Video Done");
         } else {
             console.log(" ERROR: Camera could not record videos: " + stderr + "\n" + stdout + "\n" + error);
         }
 
-        powerUsbPortOff();
-        var oldDataFileNamePrefix = dataFileNamePrefix;
-        dataFileNamePrefix = generateID();
 
-        console.log("about to archive...");
+        powerUsbPortOff();
+
+        var oldDataFileNamePrefix = dataFileNamePrefix;
+
+
+        //console.log("about to archive...");
 
         exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60000}, function (error, stdout, stderr) {
 
-            alreadyRecordingMovie = false;
-            moduleisRotating = false ;
-            appState = "active";
-
-
             if (!error) {
-                console.log("... archive completed: " + stdout);
-                goToSleep();
+                //console.log("... archive completed: " );
             }
             else {
                 console.log("ERRO : Archiver failed to archive data: " + stderr + "\n" + stdout + "\n" + error);
             }
-
+            justFinishedRecordingMovie = true;
 
         });
 
 
-    });*/
-    console.log("image captured successfully");
-    alreadyRecordingMovie = false;
-    moduleisRotating = false ;
-    appState = "active";
+    });
 
 };
 
 var powerUsbPortOn = function () {
     powerBoost.write(1);
-    console.log("... power boosted to 5v");
+    //console.log("... power boosted to 5v");
 };
 
 var powerUsbPortOff = function () {
-    console.log("About to go back to 3.3 v... ");
     powerBoost.write(0);
-    console.log("... Back to 3.3 v");
+    //console.log("... Back to 3.3 v");
 };
 
 function checkHorizontalPosition(){
@@ -261,7 +272,9 @@ function checkHorizontalPosition(){
 }
 
 function checkSoapTouches(currentTime) {
+
     if (soapHasBeenTouched()) {
+        //console.log('+');
         soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + currentTime.getTime() + '\n' ;
         if (soapStatusText.length > 1024) saveSoapTouches(soapStatusText);
     }
@@ -269,6 +282,19 @@ function checkSoapTouches(currentTime) {
 
     if (timeWithUnsavedTouch > 20) saveSoapTouches(soapStatusText);
 }
+
+
+function saveSoapTouches(touchesToSave){
+    soapStatusText = "";
+    timeWithUnsavedTouch = 0;
+    sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt",touchesToSave, function(error){
+        if (error){
+            console.log("ERROR: cannot record touches");
+        }
+        //else console.log("touches recorded");
+    });
+}
+
 
 function showAppState(currentTime){
     console.log("state: " + appState + ' ' + currentTime.getHours() + ':' + currentTime.getMinutes() + ':' + currentTime.getSeconds());
@@ -278,29 +304,23 @@ function showAppState(currentTime){
     appStateCountdown = 15 *  (1000/systemRefreshFrequency);
 }
 
-function saveSoapTouches(touchesToSave){
-    soapStatusText = "";
-    timeWithUnsavedTouch = 0;
-    sdCard.appendFile(moduleDataPath + '/' + dataFileNamePrefix + ".txt",touchesToSave, function(){
-        console.log("soap touched recorded at " +new Date().getSeconds());
-    });
-}
+
 
 function checkIfNeedsToSleep(currentTime) {
-    var thirtyMinutes = 1 * 10 * 1000; //fixme should be 30 minutes
-    if (currentTime.getTime() > (lastSleep.getTime() + thirtyMinutes )) {
+    var twoMinutes = 2 * 60 * 1000;
+    if (currentTime.getTime() > (lastSleep.getTime() + twoMinutes )) {
         goToSleep();
     }
     else console.log("not time to go to sleep yet");
-    sleepModeCheckCountdown = 20 * (1000/systemRefreshFrequency); //fixme should be 60
+    sleepModeCheckCountdown = 60 * (1000/systemRefreshFrequency);
 }
 
 function goToSleep() {
     lastSleep = new Date();
     appState = "sleep";
-    console.log("Preparing to sleep... ");
+    //console.log("Preparing to sleep... ");
 
-  /*  exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error) {
+    exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error) {
         if (error) {
             console.log("---- WE CANNOT SLEEP -----\n" + error );
         }
@@ -309,13 +329,7 @@ function goToSleep() {
         appState = "active";
         console.log("... Awake");
     });
-    */
 
-
-    console.log("waking up from sleep");
-    lastSleep = new Date();
-    appState = "active";
-    console.log("... Awake");
 }
 
 
@@ -418,9 +432,7 @@ function irqTouchCallback() {
 }
 
 function gyroInterruptCallBack() {
-    //console.log("-ISR GYRO");
-    //moduleisRotating = true; //fixme enable again
-    //console.log("-ISR GYRO--");
+
 }
 
 function horizontalPositionCallBack() {
@@ -434,6 +446,7 @@ function moduleTransportationCallBack() {
 //----------------- UTILITY FUNCTIONS --------------------------
 
 function soapHasBeenTouched() {
+
     if (soapSensorIsDamaged) return false;
     touchSensor.readButtons();
     var isTouched = touchSensor.m_buttonStates & 1;
@@ -685,7 +698,7 @@ logger("App mode: " + appMode);
 //------------------ initialize power booster to OFF
 powerBoost = new mraa.Gpio(voltageBoostPin);
 powerBoost.dir(mraa.DIR_OUT);
-powerBoost.write(1);
+powerBoost.write(0);
 
 touchSensor = new touchSensorDriver.MPR121(touchSensorDriver.MPR121_I2C_BUS, touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
 
@@ -756,23 +769,24 @@ setTimeout(function(){
     appState = "active";
 }, delayBeforeActivatingAllSensors );
 
-//moduleisRotating = true; //fixme remove this
+var justFinishedRecordingMovie = false;
 
 // --------------------------------------------------------------------------
 // --------------------------------------------------------------------------
 setInterval(function () {
 
 
-    if (appState === "sleep") return;
     currentTime = new Date();
 
-    rebootIfNeeded(currentTime);
-    if (--sleepModeCheckCountdown === 0 ) checkIfNeedsToSleep(currentTime);
-    if (appState === "sleep") return;
+    if (appState != "busy") {
+        rebootIfNeeded(currentTime);
+        if (--sleepModeCheckCountdown === 0) checkIfNeedsToSleep(currentTime);
+        if (appState === "sleep") return;
+    }
 
 
-    if (alreadyRecordingMovie) saveGyroscopeData(currentTime);
-    if ( --appStateCountdown === 0) showAppState(currentTime);
+    if (alreadyRecordingMovie) getGyroscopeData(currentTime);
+    //if ( --appStateCountdown === 0) showAppState(currentTime);
     checkSoapTouches(currentTime);
 
     if ( appState === "active") {
@@ -781,7 +795,17 @@ setInterval(function () {
         if (gyrocsopeInterrupt.read() === 1) moduleisRotating = true;
         if (moduleisRotating ) checkGyroscope();
     }
-    console.log('-');
+
+    if(justFinishedRecordingMovie){
+        console.log("done video recording");
+        dataFileNamePrefix = generateID();
+        alreadyRecordingMovie = false;
+        moduleisRotating = false ;
+        appState = "active";
+        justFinishedRecordingMovie = false;
+        goToSleep();
+    }
+
 
 }, systemRefreshFrequency);
 // --------------------------------------------------------------------------
