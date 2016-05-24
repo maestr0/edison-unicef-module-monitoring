@@ -374,12 +374,13 @@ function checkGyroscope() {
 }
 
 function startAccessPoint() {
-
+    logger("starting access point");
     //NOTE: no timeout for exec here as it will leave the app stalled. accesspointTimeoutReboot is used instead
     exec(scriptsPath + "/startAp.sh ", function (error, stdout, stderr) {
 
         if (error) {
             appState = "active";
+            logger("ERROR: could not start access point");
             console.log("ERROR: could not start AP mode. About to reboot " + error + ' --- ' + stderr);
             reboot();
 
