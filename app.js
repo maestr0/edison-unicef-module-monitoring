@@ -94,7 +94,7 @@ var systemRefreshFrequency = 200; //ms
 
 var appStateCountdown = 15 *  (1000/systemRefreshFrequency);
 var horizontalPositionCheckCountdown = 0.5 * (1000/systemRefreshFrequency);
-var sleepModeCheckCountdown = 60 * (1000/systemRefreshFrequency);
+var sleepModeCheckCountdown = 45 * (1000/systemRefreshFrequency);
 
 var xAcceleroValue = new IMUClass.new_floatp();
 var yAcceleroValue = new IMUClass.new_floatp();
