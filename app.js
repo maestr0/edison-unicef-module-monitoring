@@ -8,7 +8,7 @@ var serialPort = new SerialPort(serialPath, {
     baudrate: 115200
 });
 
-var appVersion = 24;
+var appVersion = 25;
 var startDate = new Date();
 var lastSleep = new Date();
 
@@ -67,8 +67,8 @@ appMode = process.env.NODE_ENV || "development";
 
 //appMode = "development";
 
-videoDuration = (appMode === "production") ? "40" : "5";
-delayBeforeActivatingAllSensors = (appMode === "production") ? (1 * 5 * 1000) : 1000;
+videoDuration = (appMode === "production") ? "32" : "5";
+delayBeforeActivatingAllSensors = (appMode === "production") ? (8 * 60 * 1000) : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (22 * 60 * 1000) : (2 * 60 * 1000);
 
 //winston.info("new file prefix: " + dataFileNamePrefix);
@@ -766,8 +766,6 @@ function reboot() {
 }
 
 
-
-
 // ------------------------------------------------------------
 
 
@@ -790,7 +788,7 @@ setInterval(function () {
 
 
     if (alreadyRecordingMovie) getGyroscopeData(currentTime);
-    if ( --appStateCountdown === 0) showAppState(currentTime);
+    //if ( --appStateCountdown === 0) showAppState(currentTime);
     checkSoapTouches(currentTime);
 
     if ( appState === "active") {
