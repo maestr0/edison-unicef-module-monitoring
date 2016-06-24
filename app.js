@@ -8,7 +8,7 @@ var serialPort = new SerialPort(serialPath, {
     baudrate: 115200
 });
 
-var appVersion = 25;
+var appVersion = 26;
 var startDate = new Date();
 var lastSleep = new Date();
 
