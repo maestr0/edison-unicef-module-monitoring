@@ -37,6 +37,14 @@ moduleDataPath = process.env.MODULE_DATA_DIR || "/media/sdcard/data";
 scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
 serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
+
+
+rotationalSpeed  = process.env.ROTATION_SPEED || 0x10; // up to 127
+rotationDuration = process.env.ROTATION_DURATION || 0x07; // up to 127
+
+console.log("process.env.ROTATION_SPEED= " + process.env.ROTATION_SPEED) ;
+console.log("process.env.ROTATION_DURATION= " + process.env.ROTATION_DURATION) ;
+
 var dataFileNamePrefix = generateID();
 
 var express = require('express');
@@ -465,9 +473,9 @@ function setupGyroscope() {
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG2_G, 0x00);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x80);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00);
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, 0x10);//0x20); // 0x25 ); //set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_DURATION_G, 0x87); //set minimum rotation duration to trigger interrupt (based on frequency)
-
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, rotationalSpeed);//set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_DURATION_G, (rotationDuration | 0x80); //set minimum rotation duration to trigger interrupt (based on frequency)
+    console.log(rotationDuration & 0x80);
 
     //showGyrodebugInfo();
 
