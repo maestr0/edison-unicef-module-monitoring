@@ -38,8 +38,8 @@ scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
 serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 
-rotationalSpeed  = 0x10;//process.env.ROTATION_SPEED || 0x10; // up to 127
-rotationDuration =  0x07;//process.env.ROTATION_DURATION || 0x07; // up to 127
+rotationalSpeed  = (Number(process.env.ROTATION_SPEED)) || 0x10; // up to 127
+rotationDuration =  (Number(process.env.ROTATION_DURATION)) || 0x07; // up to 127
 
 
 
