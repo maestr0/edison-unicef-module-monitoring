@@ -71,10 +71,10 @@ var horizontalPositionInterrupt ;
 
 appMode = process.env.NODE_ENV || "development";
 
-appMode = "development";
+//appMode = "development";
 
 videoDuration = (appMode === "production") ? "32" : "5";
-delayBeforeActivatingAllSensors = (appMode === "production") ? /*(8 * 60 * 1000)*/ 1000 : 1000;
+delayBeforeActivatingAllSensors = (appMode === "production") ? (8 * 60 * 1000) : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (22 * 60 * 1000) : (2 * 60 * 1000);
 
 //winston.info("new file prefix: " + dataFileNamePrefix);
@@ -269,10 +269,6 @@ function checkHorizontalPosition(){
         durationInHorizontalPosition++;
         logger("module is horizontal " + durationInHorizontalPosition + " time");
         
-        logger("process.env.ROTATION_SPEED= " + process.env.ROTATION_SPEED) ;
-        logger("process.env.ROTATION_DURATION= " + process.env.ROTATION_DURATION) ;
-        logger("rotationalSpeed= " + rotationalSpeed) ;
-        logger("rotationDuration= " + rotationDuration) ;
         
         if (durationInHorizontalPosition === 15) {
             durationInHorizontalPosition = 0 ;
@@ -448,16 +444,16 @@ function irqTouchCallback() {
 }
 
 function gyroInterruptCallBack() {
-console.log("-ISR GYRO");
+// console.log("-ISR GYRO");
 }
 
 function horizontalPositionCallBack() {
-    console.log("-ISR horizontal");
+//    console.log("-ISR horizontal");
 }
 
 function moduleTransportationCallBack() {
 
-    console.log("-ISR transportation");
+  //  console.log("-ISR transportation");
 }
 //----------------- UTILITY FUNCTIONS --------------------------
 
@@ -619,8 +615,6 @@ function setupMonitoring() {
 
     if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
         logger("MOTION SENSOR OK");
-        logger(process.env.ROTATION_SPEED);
-        logger(process.env.ROTATION_DURATION);
         gyroAccelCompass.init();                          // Initialize the device with default values
         setupGyroscope();
         setupAccelerometer();
