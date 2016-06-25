@@ -42,11 +42,7 @@ rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 rotationalSpeed  = process.env.ROTATION_SPEED || 0x10; // up to 127
 rotationDuration = process.env.ROTATION_DURATION || 0x07; // up to 127
 
-console.log("process.env.ROTATION_SPEED= " + process.env.ROTATION_SPEED) ;
-console.log("process.env.ROTATION_DURATION= " + process.env.ROTATION_DURATION) ;
 
-console.log("rotationalSpeed= " + rotationalSpeed) ;
-console.log("rotationDuration= " + rotationDuration) ;
 
 var dataFileNamePrefix = generateID();
 
@@ -79,7 +75,7 @@ appMode = process.env.NODE_ENV || "development";
 appMode = "development";
 
 videoDuration = (appMode === "production") ? "32" : "5";
-delayBeforeActivatingAllSensors = (appMode === "production") ? (8 * 60 * 1000) : 1000;
+delayBeforeActivatingAllSensors = (appMode === "production") ? /*(8 * 60 * 1000)*/ 1000 : 1000;
 delayBeforeAccessPointTimeout = (appMode === "production") ? (22 * 60 * 1000) : (2 * 60 * 1000);
 
 //winston.info("new file prefix: " + dataFileNamePrefix);
@@ -273,6 +269,12 @@ function checkHorizontalPosition(){
     if ((zAxis > 0.98) && (zAxis < 2.0) /*&& ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)*/ ) {
         durationInHorizontalPosition++;
         logger("module is horizontal " + durationInHorizontalPosition + " time");
+        
+        logger("process.env.ROTATION_SPEED= " + process.env.ROTATION_SPEED) ;
+        logger("process.env.ROTATION_DURATION= " + process.env.ROTATION_DURATION) ;
+        logger("rotationalSpeed= " + rotationalSpeed) ;
+        logger("rotationDuration= " + rotationDuration) ;
+        
         if (durationInHorizontalPosition === 15) {
             durationInHorizontalPosition = 0 ;
             startAccessPoint();
