@@ -620,6 +620,7 @@ function setupMonitoring() {
     if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
         logger("MOTION SENSOR OK");
         logger(process.env.ROTATION_SPEED);
+        logger(process.env.ROTATION_DURATION);
         gyroAccelCompass.init();                          // Initialize the device with default values
         setupGyroscope();
         setupAccelerometer();
