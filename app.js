@@ -38,10 +38,10 @@ scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
 serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 
-
+console.log("before env variable");
 rotationalSpeed  = process.env.ROTATION_SPEED || 0x10; // up to 127
 rotationDuration = process.env.ROTATION_DURATION || 0x07; // up to 127
-
+console.log("After env variable");
 
 
 var dataFileNamePrefix = generateID();
