@@ -38,10 +38,9 @@ scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
 serialNumber = process.env.SERIAL_NUMBER || "mocked-serial-no";
 rebootCount = process.env.REBOOT_COUNT || "HARDCODED_VALUE";
 
-console.log("before env variable");
 rotationalSpeed  = 0x10;//process.env.ROTATION_SPEED || 0x10; // up to 127
 rotationDuration =  0x07;//process.env.ROTATION_DURATION || 0x07; // up to 127
-console.log("After env variable");
+
 
 
 var dataFileNamePrefix = generateID();
@@ -620,6 +619,7 @@ function setupMonitoring() {
 
     if (gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_WHO_AM_I_G) != 255) {
         logger("MOTION SENSOR OK");
+        logger(process.env.ROTATION_SPEED);
         gyroAccelCompass.init();                          // Initialize the device with default values
         setupGyroscope();
         setupAccelerometer();
