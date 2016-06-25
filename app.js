@@ -45,6 +45,9 @@ rotationDuration = process.env.ROTATION_DURATION || 0x07; // up to 127
 console.log("process.env.ROTATION_SPEED= " + process.env.ROTATION_SPEED) ;
 console.log("process.env.ROTATION_DURATION= " + process.env.ROTATION_DURATION) ;
 
+console.log("rotationalSpeed= " + rotationalSpeed) ;
+console.log("rotationDuration= " + rotationDuration) ;
+
 var dataFileNamePrefix = generateID();
 
 var express = require('express');
@@ -73,7 +76,7 @@ var horizontalPositionInterrupt ;
 
 appMode = process.env.NODE_ENV || "development";
 
-//appMode = "development";
+appMode = "development";
 
 videoDuration = (appMode === "production") ? "32" : "5";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (8 * 60 * 1000) : 1000;
@@ -444,16 +447,16 @@ function irqTouchCallback() {
 }
 
 function gyroInterruptCallBack() {
-
+console.log("-ISR GYRO");
 }
 
 function horizontalPositionCallBack() {
-    //console.log("-ISR horizontal");
+    console.log("-ISR horizontal");
 }
 
 function moduleTransportationCallBack() {
 
-    //console.log("-ISR transportation");
+    console.log("-ISR transportation");
 }
 //----------------- UTILITY FUNCTIONS --------------------------
 
@@ -474,8 +477,8 @@ function setupGyroscope() {
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG3_G, 0x80);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_CTRL_REG5_G, 0x00);
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_TSH_YH_G, rotationalSpeed);//set threshold for high rotation speed per AXIS, TSH_YH_G is for Y axis only!
-    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_DURATION_G, (rotationDuration | 0x80); //set minimum rotation duration to trigger interrupt (based on frequency)
-    console.log(rotationDuration & 0x80);
+    gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_DURATION_G, (rotationDuration | 0x80)); //set minimum rotation duration to trigger interrupt (based on frequency)
+    
 
     //showGyrodebugInfo();
 
