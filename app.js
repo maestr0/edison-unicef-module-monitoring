@@ -66,7 +66,7 @@ var GyroscopeInterruptPin = 12;
 var pushButtonLightPin = 13;
 var pushButtonLight = new mraa.Gpio(pushButtonLightPin);
 
-var gyrocsopeInterrupt ;
+var gyrocsopeInterrupt = undefined ;
 var horizontalPositionInterrupt ;
 
 appMode = process.env.NODE_ENV || "development";
@@ -556,7 +556,7 @@ function showHardwareStateOnButton() {
         pushButtonLight.write(0);
     }, 250);
 
-    if (!(soapSensorIsDamaged || IMUSensorIsDamaged)) {
+    if ((soapSensorIsDamaged || IMUSensorIsDamaged)) {
         clearInterval(blinkingOn);
         clearInterval(blinkingOff);
         pushButtonLight.write(1);
@@ -564,6 +564,10 @@ function showHardwareStateOnButton() {
 
     console.log("Push Button about turns ON");
     setTimeout(function () {
+        if (!(soapSensorIsDamaged || IMUSensorIsDamaged)){
+            clearInterval(blinkingOn);
+            clearInterval(blinkingOff);
+        }
         pushButtonLight.write(0);
         console.log("Push Button IS OFF");
 
@@ -604,10 +608,11 @@ function setupMonitoring() {
     }
     else {
         logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
-        logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
+        /*logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
             function (err) {
                 //winston.error("Error log failing , critical error");
             });
+        */
     }
 
 
@@ -639,10 +644,11 @@ function setupMonitoring() {
     else {
         logger(" !!!!!!!!!!!!!!!!!! NO MOTION SENSOR !!!!!!!!!!!!!!!!");
         IMUSensorIsDamaged = true;
-        logError.appendFileSync(ErrorLogFileName, "Motion sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
+        /*logError.appendFileSync(ErrorLogFileName, "Motion sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
             function (err) {
                 //winston.error("Error log failing , critical error");
             });
+        */
     }
 
     showHardwareStateOnButton();
@@ -802,7 +808,7 @@ setInterval(function () {
     if ( appState === "active") {
         if (--horizontalPositionCheckCountdown < 0) checkHorizontalPosition();
 
-        if (gyrocsopeInterrupt.read() === 1) moduleisRotating = true;
+        if ( (!IMUSensorIsDamaged) && (gyrocsopeInterrupt.read() === 1)) moduleisRotating = true;
         if (moduleisRotating ) checkGyroscope();
     }
 
