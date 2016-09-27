@@ -265,7 +265,7 @@ function checkHorizontalPosition(){
     gyroAccelCompass.getAccelerometer(xAcceleroValue , yAcceleroValue , zAcceleroValue); // for horizontal detection
     var zAxis = IMUClass.floatp_value(zAcceleroValue);
 
-    if ((zAxis > 0.98) && (zAxis < 2.0) /*&& ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)*/ ) {
+    if ((zAxis > 0.977) && (zAxis < 2.0) /*&& ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)*/ ) {
         durationInHorizontalPosition++;
         logger("module is horizontal " + durationInHorizontalPosition + " time");
         
@@ -383,7 +383,7 @@ function checkGyroscope() {
 }
 
 function startAccessPoint() {
-    logger("starting access point");
+    logger("starting access point...");
     appState = "disabled";
     //NOTE: no timeout for exec here as it will leave the app stalled. accesspointTimeoutReboot is used instead
     exec(scriptsPath + "/startAp.sh ", function (error, stdout, stderr) {
@@ -395,7 +395,7 @@ function startAccessPoint() {
             reboot();
 
         } else {
-            console.log("in AP mode " + stdout);
+            console.log("...AP mode started" + stdout);
             appState = "disabled";
         }
     });
@@ -594,7 +594,6 @@ function setupMonitoring() {
 
 
         //NOTE: this below is turned Off since we are not waking up from touch, only when rotation is right
-        //do we allow touch to work
 
         //Pin setup for touch sensor interrupt
         // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
@@ -655,6 +654,7 @@ function setupMonitoring() {
 
     setTimeout(function(){
         appState = "active";
+        console.log("Application now running will all sensors activated");
     }, delayBeforeActivatingAllSensors );
 
 }
