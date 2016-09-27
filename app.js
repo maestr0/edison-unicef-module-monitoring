@@ -75,7 +75,7 @@ appMode = process.env.NODE_ENV || "development";
 
 videoDuration = (appMode === "production") ? "32" : "5";
 delayBeforeActivatingAllSensors = (appMode === "production") ? (8 * 60 * 1000) : 1000;
-delayBeforeAccessPointTimeout = (appMode === "production") ? (22 * 60 * 1000) : (22 * 60 * 1000);
+delayBeforeAccessPointTimeout   = (appMode === "production") ? (22 * 60 * 1000) : (22 * 60 * 1000);
 
 //winston.info("new file prefix: " + dataFileNamePrefix);
 
