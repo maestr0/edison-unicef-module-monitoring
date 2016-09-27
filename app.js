@@ -176,8 +176,9 @@ var initWebService = function () {
         }
 
 
-        appState = "active";
+        //appState = "active"; to be removed
         //winston.info("STATUS for device " + req.query.device + "\n" + sensorsOverallStatus + "\n" + errorStatus);
+        logger("info about hardware requested by web interface");
         res.send({
             "status": sensorsOverallStatus,
             "error": errorStatus
