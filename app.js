@@ -98,7 +98,7 @@ var soapStatusText = "";
 var timeWithUnsavedTouch = 0;
 var systemRefreshFrequency = 200; //ms
 
-var appStateCountdown = 15 *  (1000/systemRefreshFrequency);
+var appStateCountdown = 5 *  (1000/systemRefreshFrequency);
 var horizontalPositionCheckCountdown = 0.5 * (1000/systemRefreshFrequency);
 var sleepModeCheckCountdown = 45 * (1000/systemRefreshFrequency);
 
@@ -215,7 +215,7 @@ var startCamera = function () {
 
 var recordMovie = function () {
 
-    //console.log("Recording a movie... ");
+    logger("Recording a movie... ");
     exec(scriptsPath + "/capture.sh " + dataFileNamePrefix + " " + videoDuration, {timeout: 60000}, function (error, stdout, stderr) {
 
 
@@ -655,7 +655,7 @@ function setupMonitoring() {
 
     setTimeout(function(){
         appState = "active";
-        console.log("Application now running will all sensors activated");
+        logger("Application now running will all sensors activated");
     }, delayBeforeActivatingAllSensors );
 
 }
@@ -803,7 +803,7 @@ setInterval(function () {
 
 
     if (alreadyRecordingMovie) getGyroscopeData(currentTime);
-    //if ( --appStateCountdown === 0) showAppState(currentTime);
+    if ( --appStateCountdown === 0) showAppState(currentTime);
     checkSoapTouches(currentTime);
 
     if ( appState === "active") {
@@ -814,7 +814,7 @@ setInterval(function () {
     }
 
     if(justFinishedRecordingMovie){
-        console.log("done video recording");
+        logger("done video recording");
         dataFileNamePrefix = generateID();
         alreadyRecordingMovie = false;
         moduleisRotating = false ;
