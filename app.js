@@ -803,7 +803,7 @@ setInterval(function () {
 
 
     if (alreadyRecordingMovie) getGyroscopeData(currentTime);
-    if ( --appStateCountdown === 0) showAppState(currentTime);
+    //if ( --appStateCountdown === 0) showAppState(currentTime);
     checkSoapTouches(currentTime);
 
     if ( appState === "active") {
