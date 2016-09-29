@@ -323,7 +323,7 @@ function checkIfNeedsToSleep(currentTime) {
         goToSleep();
     }
     else console.log("not time to go to sleep yet");
-    sleepModeCheckCountdown = 60 * (1000/systemRefreshFrequency);
+    sleepModeCheckCountdown = 45 * (1000/systemRefreshFrequency);
 }
 
 function goToSleep() {
@@ -820,7 +820,7 @@ setInterval(function () {
         moduleisRotating = false ;
         appState = "active";
         justFinishedRecordingMovie = false;
-        goToSleep();
+        //goToSleep();
     }
 
 
