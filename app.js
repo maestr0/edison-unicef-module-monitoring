@@ -652,7 +652,7 @@ function setupMonitoring() {
     }
 
     showHardwareStateOnButton();
-
+    logger("The system will be idled for " + (delayBeforeActivatingAllSensors/1000) + " seconds to allow mounting of the unit...");
     setTimeout(function(){
         appState = "active";
         logger("Application now running will all sensors activated");
