@@ -329,7 +329,7 @@ function checkIfNeedsToSleep(currentTime) {
 function goToSleep() {
     lastSleep = new Date();
     appState = "sleep";
-    //console.log("Preparing to sleep... ");
+    logger("Preparing to sleep... ");
 
     exec(scriptsPath + "/sleep.sh ", {timeout: 60000}, function (error) {
         if (error) {
