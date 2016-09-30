@@ -270,7 +270,7 @@ function checkHorizontalPosition(){
     const acceleroConstant = 0.00247875217 ;
 
     // Use only multiplication for squares, as per http://stackoverflow.com/questions/26593302/whats-the-fastest-way-to-square-a-number-in-javascript#26594370
-    if ( (zAxis/Math.sqrt( xAxis*xAxis  + yAxis*yAxis + zAxis*zAxis + acceleroConstant)) > 0.95 ) {
+    if ( (zAxis/Math.sqrt( xAxis*xAxis  + yAxis*yAxis + zAxis*zAxis + acceleroConstant)) > 0.96 ) {
         durationInHorizontalPosition++;
         logger("module is horizontal " + durationInHorizontalPosition + " time");
         
