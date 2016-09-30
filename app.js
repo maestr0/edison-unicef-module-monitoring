@@ -74,7 +74,7 @@ appMode = process.env.NODE_ENV || "development";
 //appMode = "development";
 
 videoDuration = (appMode === "production") ? "32" : "5";
-delayBeforeActivatingAllSensors = (appMode === "production") ? (8 * 60 * 1000) : 1000;
+delayBeforeActivatingAllSensors = (appMode === "production") ? (0.1 * 60 * 1000) : 1000;
 delayBeforeAccessPointTimeout   = (appMode === "production") ? (22 * 60 * 1000) : (22 * 60 * 1000);
 
 //winston.info("new file prefix: " + dataFileNamePrefix);
@@ -270,7 +270,7 @@ function checkHorizontalPosition(){
     const acceleroConstant = 0.00247875217 ;
 
     // Use only multiplication for squares, as per http://stackoverflow.com/questions/26593302/whats-the-fastest-way-to-square-a-number-in-javascript#26594370
-    if ( (zAxis/Math.sqrt( xAxis*xAxis  + yAxis*yAxis + zAxis*zAxis + acceleroConstant)) > 0.9 ) {
+    if ( (zAxis/Math.sqrt( xAxis*xAxis  + yAxis*yAxis + zAxis*zAxis + acceleroConstant)) > 0.95 ) {
         durationInHorizontalPosition++;
         logger("module is horizontal " + durationInHorizontalPosition + " time");
         
