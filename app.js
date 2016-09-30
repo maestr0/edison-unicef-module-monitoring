@@ -264,9 +264,13 @@ function checkHorizontalPosition(){
 
     gyroAccelCompass.updateAccelerometer();
     gyroAccelCompass.getAccelerometer(xAcceleroValue , yAcceleroValue , zAcceleroValue); // for horizontal detection
-    var zAxis = IMUClass.floatp_value(zAcceleroValue);
+    var xAxis = IMUClass.floatp_value(xAcceleroValue) ;
+    var yAxis = IMUClass.floatp_value(yAcceleroValue) ;  
+    var zAxis = IMUClass.floatp_value(zAcceleroValue) ;
+    const acceleroConstant = 0.00247875217 ;
 
-    if ((zAxis > 0.977) && (zAxis < 2.0) /*&& ( IMUClass.floatp_value(xAcceleroValue ) < 1) && ( IMUClass.floatp_value(yAcceleroValue ) < 1)*/ ) {
+    // Use only multiplication for squares, as per http://stackoverflow.com/questions/26593302/whats-the-fastest-way-to-square-a-number-in-javascript#26594370
+    if ( (zAxis/Math.sqrt( xAxis*xAxis  + yAxis*yAxis + zAxis*zAxis + acceleroConstant)) > 0.9 ) {
         durationInHorizontalPosition++;
         logger("module is horizontal " + durationInHorizontalPosition + " time");
         
