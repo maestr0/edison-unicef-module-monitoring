@@ -13,25 +13,9 @@ var startDate = new Date();
 var lastSleep = new Date();
 
 
-var mraa = require('mraa');
+var mraa = require('mraa'); // important note: MRAA is instable and is the cause of 90% of crashes, there be dragons.
 
 var appState = "initialize";
-
-
-// -------------------------------------
-/*fs = require('fs');
-//winston = require('./log.js');
-winston = require('winston');
-var rebootCount = (process.env.REBOOT_COUNT || "RC");
-var loggerFilePath = (process.env.MODULE_PACKAGES_DIR || "/node_app_slot") + "/logs/" + rebootCount + "_monitoring.log";
-
-winston.add(require('winston-daily-rotate-file'), {
-    filename: loggerFilePath,
-    handleExceptions: true,
-    humanReadableUnhandledException: true
-});
-winston.info("Logging to file " + loggerFilePath);*/
-// -------------------------------------
 
 moduleDataPath = process.env.MODULE_DATA_DIR || "/media/sdcard/data";
 scriptsPath = process.env.SCRIPTS || "/home/root/scripts";
@@ -49,7 +33,7 @@ var express = require('express');
 var sdCard = require('fs');
 
 
-var touchSensorDriver = require('jsupm_mpr121'); // GLOBAL variable
+var touchSensorDriver = require('jsupm_mpr121'); 
 var IMUClass = require('jsupm_lsm9ds0');  // Instantiate an LSM9DS0 using default parameters (bus 1, gyro addr 6b, xm addr 1d)
 var exec = require('child_process').exec;
 
@@ -71,17 +55,17 @@ var horizontalPositionInterrupt ;
 
 appMode = process.env.NODE_ENV || "development";
 
-//appMode = "development";
+//appMode = "development"; only in dev mode when testing
 
 videoDuration = (appMode === "production") ? "32" : "5";
-delayBeforeActivatingAllSensors = (appMode === "production") ? (0.1 * 60 * 1000) : 1000;
+delayBeforeActivatingAllSensors = (appMode === "production") ? (0.1 * 60 * 1000) : 1000; // 0.1 needs to be 8 when ready to ship to Ghana team
 delayBeforeAccessPointTimeout   = (appMode === "production") ? (22 * 60 * 1000) : (22 * 60 * 1000);
 
-//winston.info("new file prefix: " + dataFileNamePrefix);
 
-var weAreRotating = 0x60; //0x40 is interrupt triggered
+var weAreRotating = 0x60;
 var touchDataID = 0;
 var motionDataID = 0;
+var zAxisThreshold = 0.96 ;
 
 var ErrorLogFileName = moduleDataPath + "/error.log";
 var templateDataLogTouch = serialNumber + ",C,";
@@ -91,16 +75,17 @@ var powerBoost;
 var touchSensor;
 var soapSensorIsDamaged = false;
 var IMUSensorIsDamaged = false;
-gyroAccelCompass = "not initialized" ; //= new IMUClass.LSM9DS0()  ; //GLOBAL VARIABLE
+gyroAccelCompass = "not initialized" ; //GLOBAL VARIABLE
 var app;
 
 var soapStatusText = "";
 var timeWithUnsavedTouch = 0;
-var systemRefreshFrequency = 200; //ms
+var systemRefreshFrequency = 200 ; // in milliseconds
+var durationBeforeSleep = 45 ;  // in seconds
 
 var appStateCountdown = 5 *  (1000/systemRefreshFrequency);
 var horizontalPositionCheckCountdown = 0.5 * (1000/systemRefreshFrequency);
-var sleepModeCheckCountdown = 45 * (1000/systemRefreshFrequency);
+var sleepModeCheckCountdown = durationBeforeSleep * (1000/systemRefreshFrequency);
 
 var xAcceleroValue = new IMUClass.new_floatp();
 var yAcceleroValue = new IMUClass.new_floatp();
@@ -140,12 +125,10 @@ var initWebService = function () {
     app = express();
     app.set('port', (process.env.MONITORING_PORT || 3001));
     app.get('/', function (req, res) {
-        //winston.info("Monitoring ROOT");
         res.send('Monitoring');
     });
     app.get('/status', function (req, res) {
         appState = "disabled";
-        //winston.info("Monitoring STATUS for " + req.query.device);
         res.header('Access-Control-Allow-Origin', '*');
         res.header('Access-Control-Allow-Methods', 'GET');
         res.header('Access-Control-Allow-Headers', 'Content-Type');
@@ -176,8 +159,6 @@ var initWebService = function () {
         }
 
 
-        //appState = "active"; to be removed
-        //winston.info("STATUS for device " + req.query.device + "\n" + sensorsOverallStatus + "\n" + errorStatus);
         logger("info about hardware requested by web interface");
         res.send({
             "status": sensorsOverallStatus,
@@ -185,7 +166,7 @@ var initWebService = function () {
         });
     });
     app.listen(app.get('port'), function () {
-        //winston.info('Monitoring listening on port ' + app.get('port'));
+        //winston.info('Monitoring listening on port ' + app.get('port')); 
     });
 }
 
@@ -231,7 +212,7 @@ var recordMovie = function () {
         var oldDataFileNamePrefix = dataFileNamePrefix;
 
 
-        //console.log("about to archive...");
+        
 
         exec(scriptsPath + "/archive.sh " + oldDataFileNamePrefix, {timeout: 60000}, function (error, stdout, stderr) {
 
@@ -252,12 +233,10 @@ var recordMovie = function () {
 
 var powerUsbPortOn = function () {
     powerBoost.write(1);
-    //console.log("... power boosted to 5v");
 };
 
 var powerUsbPortOff = function () {
     powerBoost.write(0);
-    //console.log("... Back to 3.3 v");
 };
 
 function checkHorizontalPosition(){
@@ -270,7 +249,7 @@ function checkHorizontalPosition(){
     const acceleroConstant = 0.00247875217 ;
 
     // Use only multiplication for squares, as per http://stackoverflow.com/questions/26593302/whats-the-fastest-way-to-square-a-number-in-javascript#26594370
-    if ( (zAxis/Math.sqrt( xAxis*xAxis  + yAxis*yAxis + zAxis*zAxis + acceleroConstant)) > 0.96 ) {
+    if ( (zAxis/Math.sqrt( xAxis*xAxis  + yAxis*yAxis + zAxis*zAxis + acceleroConstant)) > zAxisThreshold ) {
         durationInHorizontalPosition++;
         logger("module is horizontal " + durationInHorizontalPosition + " time");
         
@@ -289,7 +268,6 @@ function checkHorizontalPosition(){
 function checkSoapTouches(currentTime) {
 
     if (soapHasBeenTouched()) {
-        //console.log('+');
         soapStatusText += templateDataLogTouch + rebootCount + ',' + (touchDataID++) + ',' + currentTime.getTime() + '\n' ;
         if (soapStatusText.length > 1024) saveSoapTouches(soapStatusText);
     }
@@ -306,7 +284,6 @@ function saveSoapTouches(touchesToSave){
         if (error){
             console.log("ERROR: cannot record touches");
         }
-        //else console.log("touches recorded");
     });
 }
 
@@ -327,7 +304,7 @@ function checkIfNeedsToSleep(currentTime) {
         goToSleep();
     }
     else console.log("not time to go to sleep yet");
-    sleepModeCheckCountdown = 45 * (1000/systemRefreshFrequency);
+    sleepModeCheckCountdown = durationBeforeSleep * (1000/systemRefreshFrequency);
 }
 
 function goToSleep() {
@@ -350,43 +327,13 @@ function goToSleep() {
 
 //------- GATHERING DATA FROM SENSORS AND TRIGGERS VIDEO --------------
 function checkGyroscope() {
-
-
-  /*  gyroAccelCompass.updateGyroscope();
-
-    var x = new IMUClass.new_floatp();
-    var y = new IMUClass.new_floatp();
-    var z = new IMUClass.new_floatp();
-
-    gyroAccelCompass.getGyroscope(x, y, z);
-    
-
-    var gyroXAxis = Math.round(IMUClass.floatp_value(x));
-    var gyroYAxis = Math.round(IMUClass.floatp_value(y));
-    var gyroZAxis = Math.round(IMUClass.floatp_value(z));
-
-
-    // if (!(gyroXAxis >  gyroYAxis ) && !( gyroZAxis >  gyroYAxis )){
-    console.log("Gyroscope:     GX: " + gyroXAxis + " AY: " + gyroYAxis + " AZ: " + gyroZAxis);
-*/
-
     if (!alreadyRecordingMovie) {
         alreadyRecordingMovie = true;
         startCamera();
-        /*serialPort.write("Rotation " + "\n\r", function (err, results) {
-        });
-        serialPort.drain();*/
     }
-
-    //}
-
-    //gyroAccelCompass.getAccelerometer(x, y, z); // for horizontal detection
-    //console.log("Accelerometer: AX: " + IMUClass.floatp_value(x) + " AY: " + IMUClass.floatp_value(y) +  " AZ: " + IMUClass.floatp_value(z));
-
-    //}
-
 }
 
+//---------------------------------------------------------------------
 function startAccessPoint() {
     logger("starting access point...");
     appState = "disabled";
@@ -407,6 +354,8 @@ function startAccessPoint() {
 
 }
 
+
+//---------------------------------------------------------------------
 function accesspointTimeoutReboot() {
     setTimeout(function () {
         console.log("ap timed out");
@@ -428,6 +377,8 @@ function accesspointTimeoutReboot() {
     }, delayBeforeAccessPointTimeout);
 }
 
+
+//---------------------------------------------------------------------
 function stopAccessPoint() {
 
     exec(scriptsPath + "/stopAp.sh ", function (error, stdout, stderr) {
@@ -443,8 +394,11 @@ function stopAccessPoint() {
 }
 
 
+//--------------------------------------------------------------
 //---------------------- IRQ CALLBACK --------------------------
-
+// These functions are only used to wake up the module, the detection
+// part is taken care of in the main loop 
+//--------------------------------------------------------------
 function irqTouchCallback() {
 }
 
@@ -460,7 +414,11 @@ function moduleTransportationCallBack() {
 
   //  console.log("-ISR transportation");
 }
+
+
+//--------------------------------------------------------------
 //----------------- UTILITY FUNCTIONS --------------------------
+//--------------------------------------------------------------
 
 function soapHasBeenTouched() {
 
@@ -471,6 +429,8 @@ function soapHasBeenTouched() {
     return (isTouched);
 }
 
+
+//--------------------------------------------------------------
 function setupGyroscope() {
 
     gyroAccelCompass.writeReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G,  0x08); // enable interrupt only on Y axis (not Latching)
@@ -496,6 +456,7 @@ function setupGyroscope() {
      */
 }
 
+//--------------------------------------------------------------
 function setupAccelerometer() {
 
     // SETUP GEN 1 FOR Z AXIS HORIZONTAL DETECTION
@@ -515,10 +476,9 @@ function setupAccelerometer() {
     //gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_REG,0x8A); //enable X,Y high acceleration (both needed high for interrupt to happen)
     //gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_THS,0x64); //100 out of 127 possible on 2G , 100 ~ high 1.5G
     //gyroAccelCompass.writeReg( IMUClass.LSM9DS0.DEV_XM , IMUClass.LSM9DS0.REG_INT_GEN_2_DURATION,0x20); //32 out of 127 possible, 32 = 340 ms
-
-
 }
 
+//--------------------------------------------------------------
 function showGyrodebugInfo() {
 
     /*winston.info("Gyro CFG : 0x" + gyroAccelCompass.readReg(IMUClass.LSM9DS0.DEV_GYRO, IMUClass.LSM9DS0.REG_INT1_CFG_G).toString(16));
@@ -533,6 +493,7 @@ function showGyrodebugInfo() {
     */
 }
 
+//--------------------------------------------------------------
 function logger(msg) {
     console.log(msg + "\n");
     serialPort.write(msg + "\n\r", function (err, results) {
@@ -541,6 +502,7 @@ function logger(msg) {
     //winston.info(msg);
 }
 
+//--------------------------------------------------------------
 // exit on ^C
 process.on('SIGINT', function () {
     //winston.info("Exiting.");
@@ -548,6 +510,8 @@ process.on('SIGINT', function () {
 });
 
 
+//--------------------------------------------------------------
+// Note: quick and dirty blink for the ON/OFF button
 function showHardwareStateOnButton() {
 
     pushButtonLight.dir(mraa.DIR_OUT);
@@ -597,26 +561,9 @@ function setupMonitoring() {
         logger("TOUCH SENSOR OK");
         initTouchSensor();
 
-
-        //NOTE: this below is turned Off since we are not waking up from touch, only when rotation is right
-
-        //Pin setup for touch sensor interrupt
-        // var touchInterruptPin = new mraa.Gpio(capacitiveSensorInterruptPin);
-        //touchInterruptPin.dir(mraa.DIR_IN);
-
-
-        // setTimeout(function () {
-        // touchInterruptPin.isr(mraa.EDGE_BOTH, irqTouchCallback);
-        //  }, 1000);
-
     }
     else {
         logger(" !!!!!!!!!!!!!!!!!! NO TOUCH SENSOR !!!!!!!!!!!!!!!!");
-        /*logError.appendFileSync(ErrorLogFileName, "Touch sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
-            function (err) {
-                //winston.error("Error log failing , critical error");
-            });
-        */
     }
 
 
@@ -648,11 +595,6 @@ function setupMonitoring() {
     else {
         logger(" !!!!!!!!!!!!!!!!!! NO MOTION SENSOR !!!!!!!!!!!!!!!!");
         IMUSensorIsDamaged = true;
-        /*logError.appendFileSync(ErrorLogFileName, "Motion sensor not responding, might be damaged. On " + new Date().getTime() + '\n', encoding = 'utf8',
-            function (err) {
-                //winston.error("Error log failing , critical error");
-            });
-        */
     }
 
     showHardwareStateOnButton();
@@ -665,6 +607,7 @@ function setupMonitoring() {
 }
 
 
+//--------------------------------------------------------------
 function touchSensorWorks() {
     var touchI2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
     touchI2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
@@ -679,6 +622,7 @@ function touchSensorWorks() {
     return touchSensorI2CWorks;
 }
 
+//--------------------------------------------------------------
 function initTouchSensor() {
     var touchI2c = new mraa.I2c(touchSensorDriver.MPR121_I2C_BUS);
     touchI2c.address(touchSensorDriver.MPR121_DEFAULT_I2C_ADDR);
@@ -744,14 +688,15 @@ function initTouchSensor() {
     touchI2c.writeReg(0x5e, 0x01); //this step is always LAST, only pin 0 is O
     
     touchI2c.frequency(mraa.I2C_FAST);
-
 }
 
+//--------------------------------------------------------------
 function generateID() {
     var randomString = Math.random().toString(36).substring(10);
     return rebootCount + '_' + currentDate() + '_' + randomString;
 }
 
+//--------------------------------------------------------------
 function currentDate() {
     var d = new Date(),
         month = '' + (d.getMonth() + 1),
@@ -770,6 +715,7 @@ function currentDate() {
     return [year, month, day].join('_') + '-' + [hour, min, sec].join('_');
 }
 
+//--------------------------------------------------------------
 function rebootIfNeeded(currentTime) {
     var eightHours = 8 * 60 * 60 * 1000;
     if (appState !== "disabled" && currentTime.getTime() > (startDate.getTime() + eightHours)) {
@@ -778,6 +724,7 @@ function rebootIfNeeded(currentTime) {
     }
 }
 
+//--------------------------------------------------------------
 function reboot() {
     exec("reboot now", function (out, err, err2) {
         console.log("rebooting... " + out + err + err2);
@@ -785,17 +732,14 @@ function reboot() {
 }
 
 
-// ------------------------------------------------------------
 
-
-
+// --------------------------------------------------------------------------
+//------------------------------- MAIN LOOP ---------------------------------
+// --------------------------------------------------------------------------
 
 var justFinishedRecordingMovie = false;
 
-// --------------------------------------------------------------------------
-// --------------------------------------------------------------------------
 setInterval(function () {
-
 
     currentTime = new Date();
 
@@ -807,7 +751,7 @@ setInterval(function () {
 
 
     if (alreadyRecordingMovie) getGyroscopeData(currentTime);
-    //if ( --appStateCountdown === 0) showAppState(currentTime);
+    //if ( --appStateCountdown === 0) showAppState(currentTime); // only used when monitoring state machine for testing
     checkSoapTouches(currentTime);
 
     if ( appState === "active") {
@@ -824,7 +768,6 @@ setInterval(function () {
         moduleisRotating = false ;
         appState = "active";
         justFinishedRecordingMovie = false;
-        //goToSleep();
     }
 
 
